@@ -39,7 +39,7 @@ void encode_block(int *encoded, const double *block)
 void encode_block_strided(int *encoded, const double *raw, ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
 {
   double block[BLOCK_SIZE];
-  
+
   //TODO: Cache alignment?
   gather_block(block, raw, sx, sy, sz, sw);
   encode_block(encoded, block);

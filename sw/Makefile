@@ -1,49 +1,55 @@
 .PHONY: all test clean
 
-# Compiler and flags
-CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -Isrc -Iinclude
+#* Compiler and flags
+CC = g++
+CFLAGS = -std=c++11 -Wall -Wextra -Isrc
+# CURRENT_DIR := $(shell pwd)
 
-# Directories
+#* Directories
 SRC_DIR = src
+LIB_DIR = lib
 TEST_DIR = tests
 BUILD_DIR = build
+INCLUDE_DIR = include
 
-# Source files
+#* Source files
 SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
 TEST_FILES = $(wildcard $(TEST_DIR)/*.c)
 
-# Object files
+#* Object files
 OBJ_FILES = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC_FILES))
 TEST_OBJ_FILES = $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(TEST_FILES))
 
-# Header files
-INCLUDES = -Iinclude
+#* Header files
+INCLUDES = -I$(INCLUDE_DIR)
 
-# Executable
+#* Libraries
+LIBRARIES = $(wildcard $(LIB_DIR)/*.a) -lpthread
+
+#* Executable
 EXECUTABLE = test_encoder
 
-# Main target
+#* Main target
 all: $(EXECUTABLE)
 
-# Compile source files
+#* Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-# Compile test files
+#* Compile test files
 $(BUILD_DIR)/%.o: $(TEST_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) $(LIBRARIES) -c $< -o $@
 
-# Link the test executable
+#* Link the test executable
 $(EXECUTABLE): $(OBJ_FILES) $(TEST_OBJ_FILES)
-	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $(BUILD_DIR)/$@
+	$(CC) $(CFLAGS) $(INCLUDES) $^ $(LIBRARIES) -o $(BUILD_DIR)/$@
 
-# Run the tests
+#* Run the tests
 test: $(EXECUTABLE)
 	./$(BUILD_DIR)/$(EXECUTABLE)
 
-# Clean build files
+#* Clean build files
 clean:
 	rm -rf $(BUILD_DIR)
