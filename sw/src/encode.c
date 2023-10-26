@@ -183,11 +183,11 @@ void compress_2d(uint64 *compressed, const zfp_specs* specs)
   size_t x, y;
 
   //* Compress array one block of 4x4 values at a time
+  uint64 *encoded = compressed;
   for (y = 0; y < ny; y += 4)
-    for (x = 0; x < nx; x += 4) {
-      //! Segmentation fault here
+    for (x = 0; x < nx; x += 4, encoded += 16) {
       const double *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
-      uint64 *encoded = compressed + (x / 4) + (y / 4) * (nx / 4);
+      // uint64 *encoded = compressed + (x / 4) + (y / 4) * (nx / 4);
       if (nx - x < 4 || ny - y < 4)
         encode_strided_partial_2d_block(encoded, raw, MIN(nx - x, 4u), MIN(ny - y, 4u),
                                         sx, sy);

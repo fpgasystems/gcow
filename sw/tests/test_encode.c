@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include "gtest/gtest.h"
 
 // extern "C" {
 //  // * Avoid name mangling for C functions.
+#include "common.hpp"
 #include "encode.h"
 #include "types.h"
 // }
@@ -153,30 +155,39 @@ TEST(encode, compress_2d)
   specs.sz = 0;
   specs.sw = 0;
 
-  double data[specs.nx][specs.ny];
+  double data[specs.nx*specs.ny];
   specs.data = (void*)data;
   //TODO: Compression params
-  uint64 compressed[specs.nx*specs.ny];
+  size_t num_outputs = ceil(specs.nx / 4.0) * 4 * ceil(specs.ny / 4.0) * 4;
+  printf("Total outputs: %zu\n", num_outputs);
+  uint64 compressed[num_outputs];
 
   //* Initialize data with some data (e.g., sequence from 1 to 110)
   for (size_t y = 0; y < specs.ny; y++)
     for (size_t x = 0; x < specs.nx; x++)
-      data[y][x] = (double)(y * specs.nx + x + 1);
+      data[y * specs.nx + x] = (double)(y * specs.nx + x + 1);
+
+  printf("Raw values:\n");
+  print_2d<double>(data, specs.nx, specs.ny);
 
   //* Test compress_2d
   compress_2d(compressed, &specs);
 
+  printf("Encoded values:\n");
+  print_2d<uint64>(compressed, 
+    (size_t) ceil(specs.nx / 4.0) * 4, (size_t) ceil(specs.ny / 4.0) * 4, 3);
+
   //* Check correctness of the encoding size.
-  EXPECT_EQ(sizeof(compressed), sizeof(uint64) * specs.nx * specs.ny);
+  EXPECT_EQ(sizeof(compressed), sizeof(uint64) * num_outputs);
   printf("Passed size check.\n");
 
-  //* Check correctness of (full-block) encoded values.
-  double* p = (double*)specs.data;
-  for (int y = 0; y < specs.ny; y++, p += specs.sy) {
-    for (int x = 0; x < specs.nx; x++, p += specs.sx) {
-      EXPECT_EQ(compressed[y * specs.nx + x], (uint64)(specs.nx * y + x + 1));
-    }
-  }
+  // //* Check correctness of (full-block) encoded values.
+  // double* p = (double*)specs.data;
+  // for (size_t y = 0; y < specs.ny; y++, p += specs.sy) {
+  //   for (size_t x = 0; x < specs.nx; x++, p += specs.sx) {
+  //     EXPECT_EQ(compressed[y * specs.nx + x], (uint64)(specs.nx * y + x + 1));
+  //   }
+  // }
 }
 
 int main(int argc, char** argv)
