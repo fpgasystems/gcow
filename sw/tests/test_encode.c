@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <iostream>
 
 #include "gtest/gtest.h"
 
@@ -151,16 +152,20 @@ TEST(encode, compress_2d)
   specs.nz = 0;
   specs.nw = 0;
   specs.sx = 1;
-  specs.sy = 11;
+  specs.sy = specs.nx;
   specs.sz = 0;
   specs.sw = 0;
 
   double data[specs.nx*specs.ny];
   specs.data = (void*)data;
   //TODO: Compression params
-  size_t num_outputs = ceil(specs.nx / 4.0) * 4 * ceil(specs.ny / 4.0) * 4;
+
+  size_t encoded_x = ceil(specs.nx / 4.0) * 4;
+  size_t encoded_y = ceil(specs.ny / 4.0) * 4;
+  size_t num_outputs = encoded_x * encoded_y;
   printf("Total outputs: %zu\n", num_outputs);
   uint64 compressed[num_outputs];
+  std::fill_n(compressed, num_outputs, 0.0);
 
   //* Initialize data with some data (e.g., sequence from 1 to 110)
   for (size_t y = 0; y < specs.ny; y++)
@@ -174,20 +179,10 @@ TEST(encode, compress_2d)
   compress_2d(compressed, &specs);
 
   printf("Encoded values:\n");
-  print_2d<uint64>(compressed, 
-    (size_t) ceil(specs.nx / 4.0) * 4, (size_t) ceil(specs.ny / 4.0) * 4, 3);
+  print_2d<uint64>(compressed, encoded_x, encoded_y, 3);
 
-  //* Check correctness of the encoding size.
   EXPECT_EQ(sizeof(compressed), sizeof(uint64) * num_outputs);
-  printf("Passed size check.\n");
-
-  // //* Check correctness of (full-block) encoded values.
-  // double* p = (double*)specs.data;
-  // for (size_t y = 0; y < specs.ny; y++, p += specs.sy) {
-  //   for (size_t x = 0; x < specs.nx; x++, p += specs.sx) {
-  //     EXPECT_EQ(compressed[y * specs.nx + x], (uint64)(specs.nx * y + x + 1));
-  //   }
-  // }
+  //TODO: Block-wise checks.
 }
 
 int main(int argc, char** argv)

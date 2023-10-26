@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "encode.h"
 #include "types.h"
@@ -57,10 +58,11 @@ void pad_partial_block(double* block, size_t n, ptrdiff_t s)
 void gather_2d_block(double *block, const double *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
-  uint x, y;
-  for (y = 0; y < 4; y++, raw += sy - 4 * sx)
-    for (x = 0; x < 4; x++, raw += sx)
+  for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
+    for (size_t x = 0; x < 4; x++, raw += sx) {
       *block++ = *raw;
+      // printf("Gathering value: %f\n", *raw);
+    }
 }
 
 void gather_partial_2d_block(double *block, const double *raw,
@@ -71,6 +73,7 @@ void gather_partial_2d_block(double *block, const double *raw,
   for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
     for (x = 0; x < nx; x++, raw += sx) {
       block[4 * y + x] = *raw;
+      // printf("Gathering value: %f\n", *raw);
     }
     //* Pad horizontally to 4.
     pad_partial_block(block + 4 * y, nx, 1);
@@ -83,7 +86,7 @@ void gather_partial_2d_block(double *block, const double *raw,
 void gather_4d_block(double *block, const double *raw,
                      ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
 {
-  uint x, y, z, w;
+  size_t x, y, z, w;
   for (w = 0; w < 4; w++, raw += sw - 4 * sz)
     for (z = 0; z < 4; z++, raw += sz - 4 * sy)
       for (y = 0; y < 4; y++, raw += sy - 4 * sx)
@@ -122,14 +125,14 @@ void encode_2d_block(uint64 *encoded, const double *block)
 {
   //TODO: Implement 2d encoding
   for (int i = 0; i < BLOCK_SIZE_2D; i++)
-    encoded[i] = (int) block[i];
+    encoded[i] = (uint64)block[i];
 }
 
 void encode_4d_block(uint64 *encoded, const double *block)
 {
   //TODO: Implement 4d encoding
   for (int i = 0; i < BLOCK_SIZE_4D; i++)
-    encoded[i] = (int) block[i];
+    encoded[i] = (uint64)block[i];
 }
 
 void encode_strided_2d_block(uint64 *encoded, const double *raw,
@@ -180,18 +183,21 @@ void compress_2d(uint64 *compressed, const zfp_specs* specs)
   size_t ny = specs->ny;
   ptrdiff_t sx = specs->sx ? specs->sx : 1;
   ptrdiff_t sy = specs->sy ? specs->sy : (ptrdiff_t)nx;
-  size_t x, y;
 
   //* Compress array one block of 4x4 values at a time
-  uint64 *encoded = compressed;
-  for (y = 0; y < ny; y += 4)
-    for (x = 0; x < nx; x += 4, encoded += 16) {
+  size_t iblock = 0;
+  for (size_t y = 0; y < ny; y += 4) {
+    for (size_t x = 0; x < nx; x += 4, iblock++) {
+      //! Writing sequentially to the output stream for now.
+      uint64 *encoded = compressed + BLOCK_SIZE_2D * iblock;
       const double *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
-      // uint64 *encoded = compressed + (x / 4) + (y / 4) * (nx / 4);
-      if (nx - x < 4 || ny - y < 4)
+      printf("Encoding block (%ld, %ld)\n", y, x);
+      if (nx - x < 4 || ny - y < 4) {
         encode_strided_partial_2d_block(encoded, raw, MIN(nx - x, 4u), MIN(ny - y, 4u),
                                         sx, sy);
-      else
+      } else {
         encode_strided_2d_block(encoded, raw, sx, sy);
+      }
     }
+  }
 }
