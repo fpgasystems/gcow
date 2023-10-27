@@ -34,7 +34,7 @@
  *      4 5 6 4
  *      1 2 3 1
 */
-void pad_partial_block(double* block, size_t n, ptrdiff_t s)
+void pad_partial_block(float* block, size_t n, ptrdiff_t s)
 {
   switch (n) {
   case 0:
@@ -55,7 +55,7 @@ void pad_partial_block(double* block, size_t n, ptrdiff_t s)
   }
 }
 
-void gather_2d_block(double *block, const double *raw,
+void gather_2d_block(float *block, const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
   for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
@@ -65,7 +65,7 @@ void gather_2d_block(double *block, const double *raw,
     }
 }
 
-void gather_partial_2d_block(double *block, const double *raw,
+void gather_partial_2d_block(float *block, const float *raw,
                              size_t nx, size_t ny,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
@@ -83,7 +83,7 @@ void gather_partial_2d_block(double *block, const double *raw,
     pad_partial_block(block + x, ny, 4);
 }
 
-void gather_4d_block(double *block, const double *raw,
+void gather_4d_block(float *block, const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
 {
   size_t x, y, z, w;
@@ -94,7 +94,7 @@ void gather_4d_block(double *block, const double *raw,
           *block++ = *raw;
 }
 
-void gather_partial_4d_block(double *block, const double *raw,
+void gather_partial_4d_block(float *block, const float *raw,
                              size_t nx, size_t ny, size_t nz, size_t nw,
                              ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
 {
@@ -121,64 +121,74 @@ void gather_partial_4d_block(double *block, const double *raw,
         pad_partial_block(block + 16 * z + 4 * y + x, nw, 64);
 }
 
-void encode_2d_block(uint64 *encoded, const double *block)
-{
-  //TODO: Implement 2d encoding
-  for (int i = 0; i < BLOCK_SIZE_2D; i++)
-    encoded[i] = (uint64)block[i];
+int get_scaler(float x) {
+  //* Use EBIAS when x=0.
+  int e = -EBIAS;
+  return 0;
 }
 
-void encode_4d_block(uint64 *encoded, const double *block)
+void encode_2d_block(uint32 *encoded, const float *fblock)
+{
+  uint bits = 1;
+  //* Compute maximum exponent.
+  
+
+  // //TODO: Implement 2d encoding
+  for (int i = 0; i < BLOCK_SIZE_2D; i++)
+    encoded[i] = (uint32)fblock[i];
+}
+
+void encode_4d_block(uint32 *encoded, const float *block)
 {
   //TODO: Implement 4d encoding
   for (int i = 0; i < BLOCK_SIZE_4D; i++)
-    encoded[i] = (uint64)block[i];
+    encoded[i] = (uint32)block[i];
 }
 
-void encode_strided_2d_block(uint64 *encoded, const double *raw,
+void encode_strided_2d_block(uint32 *encoded, const float *raw,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
-  double block[BLOCK_SIZE_2D];
+  float block[BLOCK_SIZE_2D];
 
   //TODO: Cache alignment?
   gather_2d_block(block, raw, sx, sy);
   encode_2d_block(encoded, block);
 }
 
-void encode_strided_partial_2d_block(uint64 *encoded, const double *raw,
+void encode_strided_partial_2d_block(uint32 *encoded, const float *raw,
                                      size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy)
 {
-  double block[BLOCK_SIZE_2D];
+  float block[BLOCK_SIZE_2D];
 
   //TODO: Cache alignment?
   gather_partial_2d_block(block, raw, nx, ny, sx, sy);
   encode_2d_block(encoded, block);
 }
 
-void encode_strided_4d_block(uint64 *encoded, const double *raw,
+void encode_strided_4d_block(uint32 *encoded, const float *raw,
                              ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
 {
-  double block[BLOCK_SIZE_4D];
+  float block[BLOCK_SIZE_4D];
 
   //TODO: Cache alignment?
   gather_4d_block(block, raw, sx, sy, sz, sw);
   encode_4d_block(encoded, block);
 }
 
-void encode_strided_partial_4d_block(uint64 *encoded, const double *raw,
+void encode_strided_partial_4d_block(uint32 *encoded, const float *raw,
                                      size_t nx, size_t ny, size_t nz, size_t nw,
                                      ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
 {
-  double block[BLOCK_SIZE_4D];
+  float block[BLOCK_SIZE_4D];
 
   //TODO: Cache alignment?
   gather_partial_4d_block(block, raw, nx, ny, nz, nw, sx, sy, sz, sw);
   encode_4d_block(encoded, block);
 }
 
-void compress_2d(uint64 *compressed, const zfp_specs* specs)
+void compress_2d(uint32 *compressed, const zfp_specs* specs)
 {
-  const double* data = (const double*)specs->data;
+  const float* data = (const float*)specs->data;
   size_t nx = specs->nx;
   size_t ny = specs->ny;
   ptrdiff_t sx = specs->sx ? specs->sx : 1;
@@ -189,8 +199,8 @@ void compress_2d(uint64 *compressed, const zfp_specs* specs)
   for (size_t y = 0; y < ny; y += 4) {
     for (size_t x = 0; x < nx; x += 4, iblock++) {
       //! Writing sequentially to the output stream for now.
-      uint64 *encoded = compressed + BLOCK_SIZE_2D * iblock;
-      const double *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
+      uint32 *encoded = compressed + BLOCK_SIZE_2D * iblock;
+      const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       printf("Encoding block (%ld, %ld)\n", y, x);
       if (nx - x < 4 || ny - y < 4) {
         encode_strided_partial_2d_block(encoded, raw, MIN(nx - x, 4u), MIN(ny - y, 4u),

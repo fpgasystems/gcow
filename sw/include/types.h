@@ -2,14 +2,25 @@
 #define TYPES_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define BLOCK_SIZE_2D 16
 #define BLOCK_SIZE_4D 256
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
+/* Number of exponent bits (float32) */
+#define EBITS 8
+#define EBIAS ((1 << (EBITS - 1)) - 1) // 1023
 
 typedef unsigned int uint;
-typedef unsigned long long uint64;
+typedef int8_t int8;
+typedef uint8_t uint8;
+typedef int16_t int16;
+typedef uint16_t uint16;
+typedef int32_t int32; 
+typedef uint32_t uint32; /* Word type for float32 */
+typedef int64_t int64;
+typedef uint64_t uint64;
 
 /**
  * @brief Uncompressed array
