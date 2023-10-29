@@ -57,6 +57,7 @@ TEST(encode, gather_4d_block)
 
 TEST(encode, encode_strided_2d_block)
 {
+  zfp_specs specs;
   float raw[4][4]; //* 4x4 source array
   uint32 encoded[BLOCK_SIZE_2D];
 
@@ -66,7 +67,7 @@ TEST(encode, encode_strided_2d_block)
       raw[y][x] = (float)(x + 4 * y + 1);
 
   //* Test encode_strided_2d_block
-  encode_strided_2d_block(encoded, (const float*)raw, 1, 4);
+  encode_strided_2d_block(encoded, (const float*)raw, 1, 4, &specs);
 
   //* Check correctness of encoded values
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -77,6 +78,7 @@ TEST(encode, encode_strided_2d_block)
 //* Test function for encode_strided_4d_block
 TEST(encode, encode_strided_4d_block)
 {
+  zfp_specs specs;
   float raw[4][4][4][4]; //* 4x4x4x4 source array
   uint32 encoded[BLOCK_SIZE_4D];
 
@@ -88,7 +90,7 @@ TEST(encode, encode_strided_4d_block)
           raw[w][z][y][x] = (float)(x + 4 * y + 16 * z + 64 * w + 1);
 
   //* Test encode_strided_4d_block
-  encode_strided_4d_block(encoded, (const float*)raw, 1, 4, 16, 64);
+  encode_strided_4d_block(encoded, (const float*)raw, 1, 4, 16, 64, &specs);
 
   //* Check correctness of encoded values
   for (int i = 0; i < BLOCK_SIZE_4D; i++) {
@@ -98,6 +100,7 @@ TEST(encode, encode_strided_4d_block)
 
 TEST(encode, encode_strided_partial_2d_block)
 {
+  zfp_specs specs;
   const int ROWS = 2;
   const int COLS = 3;
   float raw[ROWS][COLS]; //* 2x3 partial source array
@@ -109,8 +112,8 @@ TEST(encode, encode_strided_partial_2d_block)
       raw[y][x] = (float)(x + COLS * y + 1);
 
   //* Test encode_strided_partial_2d_block
-  encode_strided_partial_2d_block(encoded, (const float*)raw, COLS, ROWS, 1,
-                                  COLS);
+  encode_strided_partial_2d_block(
+    encoded, (const float*)raw, COLS, ROWS, 1, COLS, &specs);
 
   //* Check correctness of the encoding size.
   EXPECT_EQ(sizeof(encoded), sizeof(uint32) * BLOCK_SIZE_2D);
@@ -123,7 +126,7 @@ TEST(encode, encode_strided_partial_2d_block)
   }
   printf("Encoded values:\n");
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
-    printf("%lld ", encoded[i]);
+    printf("%d ", encoded[i]);
     if ((i + 1) % 4 == 0)
       printf("\n");
   }

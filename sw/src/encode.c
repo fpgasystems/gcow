@@ -1,3 +1,6 @@
+// Description: Encoding functions for ZFP compression.
+// Documentation: ./include/encode.h
+
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
@@ -121,24 +124,47 @@ void gather_partial_4d_block(float *block, const float *raw,
         pad_partial_block(block + 16 * z + 4 * y + x, nw, 64);
 }
 
-int get_scaler(float x) {
-  //* Use EBIAS when x=0.
+int get_scaler_exponent(float x) {
+  //* In case x==0.
   int e = -EBIAS;
-  return 0;
+  if (x > 0) {
+    //* Get exponent of x.
+    FREXP(x, &e);
+    //* Clamp exponent in case x is subnormal; may still result in overflow.
+    //* E.g., smallest number: 2^(-126) = 1.1754944e-38, which is subnormal.
+    e = MAX(e, 1 - EBIAS);
+  }
+  return e;
 }
 
-void encode_2d_block(uint32 *encoded, const float *fblock)
+int get_block_exponent(const float *block, uint n)
+{
+  float max = 0;
+  //* Find the maximum floating point and return its exponent as the block exponent.
+  do {
+    float f = FABS(*block++);
+    if (max < f)
+      max = f;
+  } while (--n);
+  return get_scaler_exponent(max);
+}
+
+void encode_2d_block(uint32 *encoded, const float *fblock, const zfp_specs *specs)
 {
   uint bits = 1;
   //* Compute maximum exponent.
-  
-
-  // //TODO: Implement 2d encoding
+  int emax = get_block_exponent(fblock, BLOCK_SIZE_2D);
+  uint maxprec = get_precision(emax, specs->maxprec, specs->minexp, 2);
+  //* IEEE 754 exponent bias.
+  uint e = maxprec ? (uint)(emax + EBIAS) : 0;
+  if (e) {
+    
+  }
   for (int i = 0; i < BLOCK_SIZE_2D; i++)
     encoded[i] = (uint32)fblock[i];
 }
 
-void encode_4d_block(uint32 *encoded, const float *block)
+void encode_4d_block(uint32 *encoded, const float *block, const zfp_specs *specs)
 {
   //TODO: Implement 4d encoding
   for (int i = 0; i < BLOCK_SIZE_4D; i++)
@@ -146,44 +172,47 @@ void encode_4d_block(uint32 *encoded, const float *block)
 }
 
 void encode_strided_2d_block(uint32 *encoded, const float *raw,
-                             ptrdiff_t sx, ptrdiff_t sy)
+                             ptrdiff_t sx, ptrdiff_t sy, const zfp_specs *specs)
 {
   float block[BLOCK_SIZE_2D];
 
   //TODO: Cache alignment?
   gather_2d_block(block, raw, sx, sy);
-  encode_2d_block(encoded, block);
+  encode_2d_block(encoded, block, specs);
 }
 
 void encode_strided_partial_2d_block(uint32 *encoded, const float *raw,
-                                     size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy)
+                                     size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy, 
+                                     const zfp_specs *specs)
 {
   float block[BLOCK_SIZE_2D];
 
   //TODO: Cache alignment?
   gather_partial_2d_block(block, raw, nx, ny, sx, sy);
-  encode_2d_block(encoded, block);
+  encode_2d_block(encoded, block, specs);
 }
 
 void encode_strided_4d_block(uint32 *encoded, const float *raw,
-                             ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
+                             ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw, 
+                             const zfp_specs *specs)
 {
   float block[BLOCK_SIZE_4D];
 
   //TODO: Cache alignment?
   gather_4d_block(block, raw, sx, sy, sz, sw);
-  encode_4d_block(encoded, block);
+  encode_4d_block(encoded, block, specs);
 }
 
 void encode_strided_partial_4d_block(uint32 *encoded, const float *raw,
                                      size_t nx, size_t ny, size_t nz, size_t nw,
-                                     ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
+                                     ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw, 
+                                     const zfp_specs *specs)
 {
   float block[BLOCK_SIZE_4D];
 
   //TODO: Cache alignment?
   gather_partial_4d_block(block, raw, nx, ny, nz, nw, sx, sy, sz, sw);
-  encode_4d_block(encoded, block);
+  encode_4d_block(encoded, block, specs);
 }
 
 void compress_2d(uint32 *compressed, const zfp_specs* specs)
@@ -204,9 +233,9 @@ void compress_2d(uint32 *compressed, const zfp_specs* specs)
       printf("Encoding block (%ld, %ld)\n", y, x);
       if (nx - x < 4 || ny - y < 4) {
         encode_strided_partial_2d_block(encoded, raw, MIN(nx - x, 4u), MIN(ny - y, 4u),
-                                        sx, sy);
+                                        sx, sy, specs);
       } else {
-        encode_strided_2d_block(encoded, raw, sx, sy);
+        encode_strided_2d_block(encoded, raw, sx, sy, specs);
       }
     }
   }

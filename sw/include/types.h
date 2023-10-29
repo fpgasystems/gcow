@@ -6,11 +6,13 @@
 
 #define BLOCK_SIZE_2D 16
 #define BLOCK_SIZE_4D 256
+#define BLOCK_SIZE(dim) (1 << (2 * (dim)))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 /* Number of exponent bits (float32) */
 #define EBITS 8
-#define EBIAS ((1 << (EBITS - 1)) - 1) // 1023
+//* IEEE 127 offset for negative exponents.
+#define EBIAS ((1 << (EBITS - 1)) - 1)
 
 typedef unsigned int uint;
 typedef int8_t int8;
@@ -21,6 +23,28 @@ typedef int32_t int32;
 typedef uint32_t uint32; /* Word type for float32 */
 typedef int64_t int64;
 typedef uint64_t uint64;
+
+#if __STDC_VERSION__ >= 199901L
+  #define FABS(x)     fabsf(x)
+  /* x = f * 2^e (returns e and f) */
+  #define FREXP(x, e) frexpf(x, e)
+  /* x = f * 2^e (returns x) */
+  #define LDEXP(f, e) ldexpf(f, e)
+#else
+  #define FABS(x)     (float)fabs(x)
+  #define FREXP(x, e) (void)frexp(x, e)
+  #define LDEXP(f, e) (float)ldexp(f, e)
+#endif
+
+/* ZFP Compression mode */
+typedef enum {
+  zfp_null            = 0, /* an invalid configuration of the 4 params */
+  zfp_expert          = 1, /* expert mode (4 params set manually) */
+  zfp_fixed_rate      = 2, /* fixed rate mode */
+  zfp_fixed_precision = 3, /* fixed precision mode */
+  zfp_fixed_accuracy  = 4, /* fixed accuracy mode */
+  zfp_reversible      = 5  /* reversible (lossless) mode */
+} zfp_mode;
 
 /**
  * @brief Uncompressed array
@@ -35,14 +59,15 @@ typedef uint64_t uint64;
 */
 typedef struct
 {
+  void* data;
   size_t nx, ny, nz, nw;
   ptrdiff_t sx, sy, sz, sw;
-  void* data;
-
+  zfp_mode mode;
   uint minbits;
   uint maxbits;
   uint maxprec;
   int  minexp;
 } zfp_specs;
+
 
 #endif // TYPES_H
