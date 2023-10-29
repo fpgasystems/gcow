@@ -57,7 +57,7 @@ TEST(encode, gather_4d_block)
 
 TEST(encode, encode_strided_2d_block)
 {
-  zfp_specs specs;
+  zfp_input specs;
   float raw[4][4]; //* 4x4 source array
   uint32 encoded[BLOCK_SIZE_2D];
 
@@ -78,7 +78,7 @@ TEST(encode, encode_strided_2d_block)
 //* Test function for encode_strided_4d_block
 TEST(encode, encode_strided_4d_block)
 {
-  zfp_specs specs;
+  zfp_input specs;
   float raw[4][4][4][4]; //* 4x4x4x4 source array
   uint32 encoded[BLOCK_SIZE_4D];
 
@@ -100,7 +100,7 @@ TEST(encode, encode_strided_4d_block)
 
 TEST(encode, encode_strided_partial_2d_block)
 {
-  zfp_specs specs;
+  zfp_input specs;
   const int ROWS = 2;
   const int COLS = 3;
   float raw[ROWS][COLS]; //* 2x3 partial source array
@@ -149,7 +149,7 @@ TEST(encode, encode_strided_partial_2d_block)
 TEST(encode, compress_2d)
 {
 
-  zfp_specs specs;
+  zfp_input specs;
   specs.nx = 10;
   specs.ny = 11;
   specs.nz = 0;
