@@ -12,3 +12,10 @@ uint get_precision(int maxexp, uint maxprec, int minexp, int dim)
 {
   return MIN(maxprec, (uint)MAX(0, maxexp - minexp + 2 * dim + 2));
 }
+
+/* True if max compressed size exceeds maxbits */
+int exceeded_maxbits(uint maxbits, uint maxprec, uint size)
+{
+  //* Compare the total bitplanes to the maximum number of bits per block.
+  return (maxprec + 1) * size - 1 > maxbits;
+}

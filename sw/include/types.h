@@ -3,6 +3,11 @@
 
 #include "common.h"
 
+typedef unsigned char uchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+
 typedef unsigned int uint;
 typedef int8_t int8;
 typedef uint8_t uint8;
@@ -17,7 +22,6 @@ typedef uint64_t uint64;
 typedef uint32 word;
 /* Maximum number of bits in a buffered word */
 #define WORD_BITS ((size_t)(sizeof(word) * CHAR_BIT))
-
 
 /* ZFP Compression mode */
 typedef enum {
@@ -55,6 +59,41 @@ typedef struct {
   stream* data;       /* compressed bit stream */
   // zfp_execution exec; /* execution policy and parameters */
 } zfp_output;
+
+
+#define index(i, j) ((i) + 4 * (j))
+
+//* Ordering coefficients (i, j) by i + j, then i^2 + j^2
+//* (Similar to the zig-zag ordering of JPEG.)
+static const uchar PERM_2D[16] = {
+  index(0, 0), /*  0 : 0 */
+
+  index(1, 0), /*  1 : 1 */
+  index(0, 1), /*  2 : 1 */
+
+  index(1, 1), /*  3 : 2 */
+
+  index(2, 0), /*  4 : 2 */
+  index(0, 2), /*  5 : 2 */
+
+  index(2, 1), /*  6 : 3 */
+  index(1, 2), /*  7 : 3 */
+
+  index(3, 0), /*  8 : 3 */
+  index(0, 3), /*  9 : 3 */
+
+  index(2, 2), /* 10 : 4 */
+
+  index(3, 1), /* 11 : 4 */
+  index(1, 3), /* 12 : 4 */
+
+  index(3, 2), /* 13 : 5 */
+  index(2, 3), /* 14 : 5 */
+
+  index(3, 3), /* 15 : 6 */
+};
+
+#undef index
 
 
 #endif // TYPES_H

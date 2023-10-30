@@ -1,7 +1,7 @@
 #include "types.h"
 
 struct stream {
-  size_t bits;        /* number of buffered bits (0 <= bits < WORD_BITS) */
+  size_t buffered_bits;        /* number of buffered bits (0 <= bits < WORD_BITS) */
   word buffer; /* incoming/outgoing bits (buffer < 2^bits) */
   word* ptr;   /* pointer to next word to be read/written */
   word* begin; /* beginning of stream */
@@ -18,3 +18,4 @@ void stream_write_word(stream* s, word value);
 uint64 stream_read_bits(stream* s, size_t n);
 uint64 stream_write_bits(stream* s, uint64 value, size_t n);
 uint stream_write_bit(stream* s, uint bit);
+uint64 stream_woffset(stream* s);

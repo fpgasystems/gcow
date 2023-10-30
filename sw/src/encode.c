@@ -186,11 +186,218 @@ void fwd_cast_block(int32 *iblock, const float *fblock, uint n, int emax)
   } while (--n);
 }
 
-uint encode_iblock(stream* out_data, uint minbits, uint maxbits, uint maxprec,
-                   int32* iblock)
+void fwd_lift_vector(int32 *p, ptrdiff_t s)
 {
-  //TODO
-  return 0;
+  //* Gather 4-vector [x y z w] from p.
+  int32 x, y, z, w;
+  x = *p; p += s;
+  y = *p; p += s;
+  z = *p; p += s;
+  w = *p; p += s;
+
+  /*
+  ** non-orthogonal transform
+  **        ( 4  4  4  4) (x)
+  ** 1/16 * ( 5  1 -1 -5) (y)
+  **        (-4  4  4 -4) (z)
+  **        (-2  6 -6  2) (w)
+
+  * The above is essentially the transform matix 
+  * (similar to the cosine transform matrix in JPEG)
+  */
+  x += w; x >>= 1; w -= x;
+  z += y; z >>= 1; y -= z;
+  x += z; x >>= 1; z -= x;
+  w += y; w >>= 1; y -= w;
+  w += y >> 1; y -= w >> 1;
+
+  /**
+  * ^ After applying the transform matrix 
+  * ^ on a 4-vector (x = 10, y = 20, z = 30, and w = 40):
+    x' = (4x + 4y + 4z + 4w)  / 16 = 25
+    y' = (5x + y - z - 5w)    / 16 = -11.875
+    z' = (-4x + 4y + 4z - 4w) / 16 = 2.5
+    w' = (-2x + 6y - 6z + 2w) / 16 = 8.75 
+   */
+
+  p -= s; *p = w;
+  p -= s; *p = z;
+  p -= s; *p = y;
+  p -= s; *p = x;
+
+  /**
+  * ^ The result is then stored in reverse order.
+    [w', z', y', x'] = [25, -11.875, 2.5, 8.75]
+  */
+}
+
+void fwd_decorrelate_2d_block(int32 *iblock)
+{
+  uint x, y;
+  /* transform along x */
+  for (y = 0; y < 4; y++)
+    fwd_lift_vector(iblock + 4 * y, 1);
+  /* transform along y */
+  for (x = 0; x < 4; x++)
+    fwd_lift_vector(iblock + 1 * x, 4);
+}
+
+/* Map two's complement signed integer to negabinary unsigned integer */
+uint32 twocomplement_to_negabinary(int32 x)
+{
+  return ((uint32)x + NBMASK) ^ NBMASK;
+}
+
+/* Reorder signed coefficients and convert to unsigned integer */
+void fwd_reorder_int2uint(uint32* ublock, const int32* iblock,
+                          const uchar* perm, uint n)
+{
+  do
+    *ublock++ = twocomplement_to_negabinary(iblock[*perm++]);
+  while (--n);
+}
+
+/* Compress <= 64 (1-3D) unsigned integers with rate contraint */
+//! The `const` pointers should be `restrict` pointers in C, using `const` for now.
+uint encode_partial_bitplanes(stream *const out_data,
+                              const uint32 *const ublock,
+                              uint maxbits, uint maxprec, uint block_size)
+{
+  /* Make a copy of bit stream to avoid aliasing */
+  stream s = *out_data;
+  uint intprec = (uint)(CHAR_BIT * sizeof(int32));
+  //* `kmin` is the cutoff of the least significant bit plane to encode.
+  uint kmin = intprec > maxprec ? intprec - maxprec : 0;
+  uint bits = maxbits;
+  uint i, k, m, n;
+  uint64 x;
+
+  //* Encode one bit plane at a time from MSB to LSB
+  for (k = intprec, n = 0; bits && k-- > kmin;) {
+    //^ Step 1: Extract bit plane #k to x
+    x = 0;
+    for (i = 0; i < block_size; i++)
+      //* Below puts the `k`th bit of `data[i]` into the `i`th bit of `x`.
+      //* I.e., transposing into the bit plane format.
+      x += (uint64)((ublock[i] >> k) & 1u) << i;
+
+    //^ Step 2: Encode first n bits of bit plane verbatim.
+    //* Bound the total encoded bit `n` by the `maxbits`.
+    //& `n` is the number of bits in `x` that have been encoded so far.
+    m = MIN(n, bits);
+    bits -= m;
+    //* (The first n bits "are encoded verbatim.")
+    x = stream_write_bits(&s, x, m);
+
+    //^ Step 3: Unary run-length encode remainder of bit plane.
+    //* Shift `x` right by 1 bit and increment `n` until `x` becomes 0.
+    for (; bits && n < block_size; x >>= 1, n++) {
+      //* The number of bits in `x` still to be encoded.
+      bits--;
+      //* Group test: If `x` is not 0, then write a 1 bit.
+      //& `!!` is used to convert a value to its corresponding boolean value, e.g., !!5 == true.
+      //& `stream_write_bit()` returns the bit (1/0) that was written.
+      if (stream_write_bit(&s, !!x)) {
+        //^ Positive group test (x != 0) -> Scan for one-bit.
+        for (; bits && n < block_size - 1; x >>= 1, n++) {
+          //* `n` is incremented for every encoded bit and accumulated across all bitplanes.
+          bits--;
+          //* Continue writing 0's until a 1 bit is found.
+          //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
+          if (stream_write_bit(&s, x & 1u))
+            //* After writing a 1 bit, break out for another group test
+            //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+            break;
+        }
+      } else {
+        //^ Negative group test (x == 0) -> Done with bit plane.
+        break;
+      }
+    }
+  }
+
+  *out_data = s;
+  //* Returns the number of bits written (constrained by `maxbits`).
+  return maxbits - bits;
+}
+
+/* Compress <= 64 (1-3D) unsigned integers without rate contraint */
+//! The `const` pointers should be `restrict` pointers in C, using `const` for now.
+uint encode_all_bitplanes(stream *const out_data, const uint32 *const ublock,
+                          uint maxprec, uint block_size)
+{
+  /* make a copy of bit stream to avoid aliasing */
+  stream s = *out_data;
+  uint64 offset = stream_woffset(&s);
+  uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
+  uint kmin = intprec > maxprec ? intprec - maxprec : 0;
+  uint i, k, n;
+
+  /* encode one bit plane at a time from MSB to LSB */
+  for (k = intprec, n = 0; k-- > kmin;) {
+    //^ Step 1: extract bit plane #k to x.
+    uint64 x = 0;
+    for (i = 0; i < block_size; i++)
+      x += (uint64)((ublock[i] >> k) & 1u) << i;
+    //^ Step 2: encode first n bits of bit plane.
+    x = stream_write_bits(&s, x, n);
+    //^ Step 3: unary run-length encode remainder of bit plane.
+    for (; n < block_size && stream_write_bit(&s, !!x); x >>= 1, n++)
+      for (; n < block_size - 1 && !stream_write_bit(&s, x & 1u); x >>= 1, n++)
+        ;
+  }
+
+  *out_data = s;
+  //* Returns the number of bits written.
+  return (uint)(stream_woffset(&s) - offset);
+}
+
+
+//! The `const` pointers should be `restrict` pointers in C, using `const` for now.
+uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
+                   uint maxprec,
+                   int32 *iblock, size_t dim)
+{
+  size_t block_size = BLOCK_SIZE(dim);
+  uint32 ublock[block_size];
+
+  //* Perform forward decorrelation transform.
+  switch (dim) {
+  case 2:
+    fwd_decorrelate_2d_block(iblock);
+    break;
+  //TODO: Implement other dimensions.
+  default:
+    break;
+  }
+  //* Reorder signed coefficients and convert to unsigned integer
+  fwd_reorder_int2uint(ublock, iblock, PERM_2D, block_size);
+
+  uint encoded_bits = 0;
+  //* Bitplane coding with the fastest implementation.
+  if (exceeded_maxbits(maxbits, maxprec, block_size)) {
+    if (block_size < BLOCK_SIZE_4D) {
+      //* Encode partial bitplanes with rate constraint.
+      encoded_bits = encode_partial_bitplanes(out_data, ublock, maxbits, maxprec,
+                                              block_size);
+    } else {
+      //TODO: Implement 4d encoding
+    }
+  } else {
+    if (block_size < BLOCK_SIZE_4D) {
+      //* Encode all bitplanes without rate constraint.
+      encoded_bits = encode_all_bitplanes(out_data, ublock, maxprec, block_size);
+    } else {
+      //TODO: Implement 4d encoding
+    }
+  }
+
+  //* Write at least minbits bits by padding with zeros.
+  if (encoded_bits < minbits) {
+    stream_pad(out_data, minbits - encoded_bits);
+    encoded_bits = minbits;
+  }
+  return encoded_bits;
 }
 
 uint encode_fblock(zfp_output* output, const float *fblock, size_t dim)
@@ -218,7 +425,8 @@ uint encode_fblock(zfp_output* output, const float *fblock, size_t dim)
               output->minbits - MIN(bits, output->minbits),
               output->maxbits - bits,
               maxprec,
-              iblock);
+              iblock,
+              dim);
   } else {
     /* write single zero-bit to indicate that all values are zero */
     //* Compress a block of all zeros and add padding if it's fixed-rate.
