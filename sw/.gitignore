@@ -2,6 +2,7 @@ build/
 dist/
 **/*.orig
 **/*.gcow
+**/*large*.zfp
 
 ### C ###
 # Prerequisites

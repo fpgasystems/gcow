@@ -1,4 +1,4 @@
-.PHONY: all test clean
+.PHONY: all test clean format encoder_test zfp_test
 
 #* Compiler and flags
 CC = g++

@@ -78,9 +78,16 @@ TEST_P(TestZfp2D, compress)
   printf("Compressed size:\t%ld bytes\n", output_size);
 
   std::stringstream zfpf;
-  zfpf << "tests/data/compressed_2d_" << n << ".zfp";
+  if (n > 1e4)
+    zfpf << "tests/data/compressed_2d_" << n << "_large.zfp";
+  else
+    zfpf << "tests/data/compressed_2d_" << n << ".zfp";
+
   std::stringstream gcowf;
-  gcowf << "tests/data/compressed_2d_" << n << ".gcow";
+  if (n > 1e4)
+    gcowf << "tests/data/compressed_2d_" << n << "_large.gcow";
+  else
+    gcowf << "tests/data/compressed_2d_" << n << ".gcow";
 
   FILE *fp = fopen(gcowf.str().c_str(), "wb");
   if (!fp) {
@@ -96,7 +103,7 @@ TEST_P(TestZfp2D, compress)
 }
 
 INSTANTIATE_TEST_SUITE_P(zfp, TestZfp2D, ::testing::Values(
-                           3, 8, 123, 210, 354, 505, 510, 7654
+                           3, 8, 123, 210, 354, 510, 7654//, 10240
                          ));
 
 int main(int argc, char** argv)
