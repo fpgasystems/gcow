@@ -70,7 +70,7 @@ zfp_test: $(EXE_TEST_ZFP)
 
 #* Clean build files
 clean:
-	rm -rf $(BUILD_DIR) **/*.orig
+	rm -rf $(BUILD_DIR) **/*.orig tests/data/*.gcow
 
 format:clean
 	astyle --style=linux --indent=spaces=2 -S --max-code-length=80 src/*.c* include/*.h* tests/*.c*

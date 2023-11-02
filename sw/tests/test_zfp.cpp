@@ -7,6 +7,9 @@
 #include "stream.h"
 #include "zfp.h"
 
+
+class TestZfp2D : public ::testing::TestWithParam<std::tuple<int>> {};
+
 void get_input_2d(float *input_data, size_t n)
 {
   size_t nx = n;
@@ -21,9 +24,45 @@ void get_input_2d(float *input_data, size_t n)
     }
 }
 
-TEST(zfp, compress)
+void compare_two_files(const char *file1, const char *file2)
 {
-  size_t n = 100;
+  FILE *fp1 = fopen(file1, "rb");
+  FILE *fp2 = fopen(file2, "rb");
+
+  if (!fp1 || !fp2) {
+    printf("Failed to open file for reading.\n");
+    exit(1);
+  }
+
+  fseek(fp1, 0, SEEK_END);
+  fseek(fp2, 0, SEEK_END);
+
+  long size1 = ftell(fp1);
+  long size2 = ftell(fp2);
+
+  EXPECT_EQ(size1, size2) << "File sizes are not the same.\n";
+
+  rewind(fp1);
+  rewind(fp2);
+
+  char *buffer1 = (char*)malloc(size1);
+  char *buffer2 = (char*)malloc(size2);
+
+  fread(buffer1, 1, size1, fp1);
+  fread(buffer2, 1, size2, fp2);
+
+  EXPECT_EQ(memcmp(buffer1, buffer2, size1),
+            0) << "File contents are not the same\n.";
+
+  fclose(fp1);
+  fclose(fp2);
+}
+
+TEST_P(TestZfp2D, compress)
+{
+  size_t n = std::get<0>(GetParam());
+  printf("Testing size: %ldx%ld\n", n, n);
+
   float *input_data = (float*)malloc(n * n * sizeof(float));
   get_input_2d(input_data, n);
 
@@ -32,10 +71,33 @@ TEST(zfp, compress)
 
   double tolerance = 1e-3;
   double max_error = set_zfp_output_accuracy(output, tolerance);
-  printf("Maximum error: %f\n", max_error);
+  printf("Maximum error:\t\t%f\n", max_error);
 
+  size_t output_size = zfp_compress(output, input);
+  printf("Raw data size:\t\t%ld bytes\n", n * n * sizeof(float));
+  printf("Compressed size:\t%ld bytes\n", output_size);
+
+  std::stringstream zfpf;
+  zfpf << "tests/data/compressed_2d_" << n << ".zfp";
+  std::stringstream gcowf;
+  gcowf << "tests/data/compressed_2d_" << n << ".gcow";
+
+  FILE *fp = fopen(gcowf.str().c_str(), "wb");
+  if (!fp) {
+    printf("Failed to open file for writing.\n");
+    exit(1);
+  } else {
+    fwrite(output->data->begin, 1, output_size, fp);
+    fclose(fp);
+  }
+
+  compare_two_files(gcowf.str().c_str(), zfpf.str().c_str());
   cleanup(input, output);
 }
+
+INSTANTIATE_TEST_SUITE_P(zfp, TestZfp2D, ::testing::Values(
+                           3, 8, 123, 210, 354, 505, 510, 7654
+                         ));
 
 int main(int argc, char** argv)
 {

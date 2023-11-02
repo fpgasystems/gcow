@@ -20,8 +20,8 @@ typedef uint32_t uint32;
 typedef int64_t int64;
 typedef uint64_t uint64;
 
-/* Types matching float32 (common DNN param type) */
-typedef uint32 stream_word;
+/* Use the maximum word size by default for IO highest speed (irrespective of the input data type since it's just a stream of bits) */
+typedef uint64 stream_word;
 /* Maximum number of bits in a buffered stream word */
 #define SWORD_BITS ((size_t)(sizeof(stream_word) * CHAR_BIT))
 
@@ -116,7 +116,7 @@ uint is_reversible(const zfp_output* output);
 uint get_input_dimension(const zfp_input* input);
 size_t get_input_num_blocks(const zfp_input* input);
 size_t get_input_size(const zfp_input* input, size_t* shape);
-size_t get_dtype_size(const zfp_input* input);
+size_t get_dtype_size(data_type dtype);
 uint get_input_precision(const zfp_input* input);
 size_t get_max_output_bytes(const zfp_output *output, const zfp_input *input);
 

@@ -1,5 +1,6 @@
 #include "types.h"
 #include "stream.h"
+#include <stdio.h>
 
 
 double set_zfp_output_accuracy(zfp_output *output, double tolerance)
@@ -62,6 +63,9 @@ void free_zfp_input(zfp_input* input)
 
 void free_zfp_output(zfp_output* output)
 {
+  if (output->data->begin) {
+    free(output->data->begin);
+  }
   if (output->data) {
     free(output->data);
   }
@@ -102,6 +106,7 @@ zfp_output *init_zfp_output(const zfp_input *input)
 {
   zfp_output *output = alloc_zfp_output();
   size_t output_bytes = get_max_output_bytes(output, input);
+  printf("Max output: %ld bytes.\n", output_bytes);
   void *buffer = malloc(output_bytes);
   stream* output_data = stream_init(buffer, output_bytes);
   output->data = output_data;
@@ -158,9 +163,9 @@ size_t get_input_size(const zfp_input* input, size_t* shape)
          1u) * MAX(input->nw, 1u);
 }
 
-size_t get_dtype_size(const zfp_input* input)
+size_t get_dtype_size(data_type dtype)
 {
-  switch (input->dtype) {
+  switch (dtype) {
     case dtype_int32:
       return sizeof(int32);
     case dtype_int64:
@@ -176,14 +181,16 @@ size_t get_dtype_size(const zfp_input* input)
 
 uint get_input_precision(const zfp_input* input)
 {
-  return (uint)(CHAR_BIT * get_dtype_size(input));
+  return (uint)(CHAR_BIT * get_dtype_size(input->dtype));
 }
 
 size_t get_max_output_bytes(const zfp_output *output, const zfp_input *input)
 {
   int reversible = is_reversible(output);
+  printf("Reversible: %d\n", reversible);
   uint dim = get_input_dimension(input);
   size_t num_blocks = get_input_num_blocks(input);
+  printf("Total 4^d blocks: %ld\n", num_blocks);
   uint values = (1u << (2 * dim));
   uint maxbits = 0;
 

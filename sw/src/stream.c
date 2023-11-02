@@ -150,7 +150,7 @@ size_t stream_capacity_bytes(const stream *s)
   return (size_t)(s->end - s->begin) * sizeof(stream_word);
 }
 
-size_t stream_size(const stream *s)
+size_t stream_size_bytes(const stream *s)
 {
   return (size_t)(s->ptr - s->begin) * sizeof(stream_word);
 }

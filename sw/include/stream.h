@@ -23,7 +23,7 @@ uint64 stream_write_bits(stream *s, uint64 value, size_t n);
 uint stream_write_bit(stream *s, uint bit);
 uint64 stream_woffset(stream *s);
 void stream_rewind(stream *s);
-size_t stream_size(const stream *s);
+size_t stream_size_bytes(const stream *s);
 stream *stream_init(void* buffer, size_t bytes);
 size_t stream_flush(stream *s);
 

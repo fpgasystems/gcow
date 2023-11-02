@@ -23,7 +23,7 @@ size_t zfp_compress(zfp_output *output, const zfp_input *input)
   }
 
   stream_flush(output->data);
-  return stream_size(output->data);
+  return stream_size_bytes(output->data);
 }
 
 
@@ -39,11 +39,11 @@ void zfp_compress_2d(zfp_output *output, const zfp_input *input)
 
   //* Compress array one block of 4x4 values at a time
   for (size_t y = 0; y < ny; y += 4) {
+    // printf("Encoding block [%ld, *]\n", y);
     for (size_t x = 0; x < nx; x += 4) {
       const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       float fblock[block_size];
 
-      printf("Encoding block (%ld, %ld)\n", y, x);
       if (nx - x < 4 || ny - y < 4) {
         gather_partial_2d_block(fblock, raw, MIN(nx - x, 4u), MIN(ny - y, 4u), sx, sy);
       } else {
