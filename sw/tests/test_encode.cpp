@@ -84,7 +84,7 @@ void test_2d(uint32 *compressed, const zfp_input* input)
   size_t iblock = 0;
   for (size_t y = 0; y < ny; y += 4) {
     for (size_t x = 0; x < nx; x += 4, iblock++) {
-      //! Writing sequentially to the output stream for now.
+      //! Writing sequentially to the output stream for testing.
       uint32 *encoded = compressed + BLOCK_SIZE_2D * iblock;
       const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       printf("Encoding block (%ld, %ld)\n", y, x);
@@ -278,7 +278,7 @@ TEST(encode, test_2d)
 
 int main(int argc, char** argv)
 {
-  printf("\n");
+  printf("\nEncoder Tests: \n");
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

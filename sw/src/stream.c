@@ -59,7 +59,7 @@ inline uint64 stream_read_bits(stream* s, size_t n)
 uint64 stream_write_bits(stream* s, uint64 value, size_t n)
 {
   /* append bit string to buffer */
-  //? I think this is prepending the `value` to the buffered bits.
+  //? Should be prepending (not appending) the `value` to the buffered bits.
   //* The `value` is shifted left by the number of buffered bits.
   //* For example, if the buffer is 0b0101 and the value is 0b11, then the buffer becomes 0b110101.
   s->buffer += (stream_word)(value << s->buffered_bits);
@@ -111,6 +111,15 @@ void stream_pad(stream* s, uint64 n)
   s->buffered_bits = (size_t)bits;
 }
 
+/* Write any remaining buffered bits and align stream on next word boundary */
+size_t stream_flush(stream* s)
+{
+  size_t bits = (SWORD_BITS - s->buffered_bits) % SWORD_BITS;
+  if (bits)
+    stream_pad(s, bits);
+  return bits;
+}
+
 /* Return bit offset to next bit to be written */
 uint64 stream_woffset(stream* s)
 {
@@ -125,7 +134,7 @@ void stream_rewind(stream *s)
   s->buffered_bits = 0;
 }
 
-stream* stream_init(void* buffer, size_t bytes)
+stream *stream_init(void *buffer, size_t bytes)
 {
   stream *s = (stream*)malloc(sizeof(stream));
   if (s) {
@@ -136,12 +145,12 @@ stream* stream_init(void* buffer, size_t bytes)
   return s;
 }
 
-size_t stream_capacity_bytes(const stream* s)
+size_t stream_capacity_bytes(const stream *s)
 {
   return (size_t)(s->end - s->begin) * sizeof(stream_word);
 }
 
-size_t stream_size(const stream* s)
+size_t stream_size(const stream *s)
 {
   return (size_t)(s->ptr - s->begin) * sizeof(stream_word);
 }

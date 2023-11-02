@@ -372,8 +372,7 @@ uint encode_all_bitplanes(stream *const out_data, const uint32 *const ublock,
 
 //! The `const` pointers should be `restrict` pointers in C, using `const` for now.
 uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
-                   uint maxprec,
-                   int32 *iblock, size_t dim)
+                   uint maxprec, int32 *iblock, size_t dim)
 {
   size_t block_size = BLOCK_SIZE(dim);
   uint32 ublock[block_size];

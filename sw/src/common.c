@@ -22,11 +22,11 @@ double set_zfp_output_accuracy(zfp_output *output, double tolerance)
 /**
  * @brief Allocate a new zfp_input structure.
 */
-zfp_input* alloc_zfp_input(void)
+zfp_input *alloc_zfp_input(void)
 {
   zfp_input* input = (zfp_input*)malloc(sizeof(zfp_input));
   if (input) {
-    input->dtype = data_type_none;
+    input->dtype = dtype_none;
     input->nx = input->ny = input->nz = input->nw = 0;
     input->sx = input->sy = input->sz = input->sw = 0;
     input->data = NULL;
@@ -37,11 +37,11 @@ zfp_input* alloc_zfp_input(void)
 /**
  * @brief Allocate a new zfp_output structure.
 */
-zfp_output* alloc_zfp_output(stream *data)
+zfp_output *alloc_zfp_output(void)
 {
   zfp_output* output = (zfp_output*)malloc(sizeof(zfp_output));
   if (output) {
-    output->data = data;
+    output->data = NULL;
     output->minbits = ZFP_MIN_BITS;
     output->maxbits = ZFP_MAX_BITS;
     output->maxprec = ZFP_MAX_PREC;
@@ -52,6 +52,9 @@ zfp_output* alloc_zfp_output(stream *data)
 
 void free_zfp_input(zfp_input* input)
 {
+  if (input->data) {
+    free(input->data);
+  }
   if (input) {
     free(input);
   }
@@ -73,7 +76,7 @@ void cleanup(zfp_input *input, zfp_output *output)
   free_zfp_output(output);
 }
 
-zfp_input* set_zfp_input(void* data, data_type dtype, uint dim, ...)
+zfp_input *init_zfp_input(void* data, data_type dtype, uint dim, ...)
 {
   va_list shapes;
   va_start(shapes, dim);
@@ -93,6 +96,17 @@ zfp_input* set_zfp_input(void* data, data_type dtype, uint dim, ...)
   }
   va_end(shapes);
   return input;
+}
+
+zfp_output *init_zfp_output(const zfp_input *input)
+{
+  zfp_output *output = alloc_zfp_output();
+  size_t output_bytes = get_max_output_bytes(output, input);
+  void *buffer = malloc(output_bytes);
+  stream* output_data = stream_init(buffer, output_bytes);
+  output->data = output_data;
+  stream_rewind(output_data);
+  return output;
 }
 
 uint is_reversible(const zfp_output* output)
@@ -147,13 +161,13 @@ size_t get_input_size(const zfp_input* input, size_t* shape)
 size_t get_dtype_size(const zfp_input* input)
 {
   switch (input->dtype) {
-    case data_type_int32:
+    case dtype_int32:
       return sizeof(int32);
-    case data_type_int64:
+    case dtype_int64:
       return sizeof(int64);
-    case data_type_float:
+    case dtype_float:
       return sizeof(float);
-    case data_type_double:
+    case dtype_double:
       return sizeof(double);
     default:
       return 0;
@@ -165,7 +179,7 @@ uint get_input_precision(const zfp_input* input)
   return (uint)(CHAR_BIT * get_dtype_size(input));
 }
 
-size_t get_output_max_size(const zfp_output *output, const zfp_input *input)
+size_t get_max_output_bytes(const zfp_output *output, const zfp_input *input)
 {
   int reversible = is_reversible(output);
   uint dim = get_input_dimension(input);
@@ -179,16 +193,16 @@ size_t get_output_max_size(const zfp_output *output, const zfp_input *input)
 
   switch (input->dtype) {
     //TODO: Check if these are the correct maxbits.
-    case data_type_int32:
+    case dtype_int32:
       maxbits += reversible ? 5 : 0;
       break;
-    case data_type_int64:
+    case dtype_int64:
       maxbits += reversible ? 6 : 0;
       break;
-    case data_type_float:
+    case dtype_float:
       maxbits += reversible ? 1 + 1 + 8 + 5 : 1 + 8;
       break;
-    case data_type_double:
+    case dtype_double:
       maxbits += reversible ? 1 + 1 + 11 + 6 : 1 + 11;
       break;
     default:

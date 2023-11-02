@@ -46,38 +46,11 @@ int get_scaler_exponent(float x);
 */
 int get_block_exponent(const float *block, uint n);
 
-// void encode_4d_block(uint32 *encoded, const float *fblock,
-//                      const zfp_input *specs);
-
-// void encode_strided_4d_block(uint32 *encoded, const float *raw,
-//                              ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw,
-//                              const zfp_input *specs);
-
-// void encode_strided_partial_4d_block(uint32 *encoded, const float *raw,
-//                                      size_t nx, size_t ny, size_t nz, size_t nw,
-//                                      ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw,
-//                                      const zfp_input *specs);
-
-
 void gather_2d_block(float *block, const float *raw, ptrdiff_t sx,
                      ptrdiff_t sy);
 
 void gather_partial_2d_block(float *block, const float *raw,
                              size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy);
-
-// void encode_2d_block(uint32 *encoded, const float *fblock,
-//                      const zfp_input *specs);
-
-// void encode_strided_2d_block(uint32 *encoded, const float *raw, ptrdiff_t sx,
-//                              ptrdiff_t sy,
-//                              const zfp_input *specs);
-
-// void encode_strided_partial_2d_block(uint32 *encoded, const float *raw,
-//                                      size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy,
-//                                      const zfp_input *specs);
-
-// void test_2d(uint32 *compressed, const zfp_input* specs);
-
 
 /**
  * @brief Get the maximum number of bit planes to encode.
@@ -89,4 +62,8 @@ void gather_partial_2d_block(float *block, const float *raw,
 */
 uint get_precision(int maxexp, uint maxprec, int minexp, int dim);
 
+
+uint encode_fblock(zfp_output* output, const float *fblock, size_t dim);
+uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
+                   uint maxprec, int32 *iblock, size_t dim);
 #endif // ENCODE_H

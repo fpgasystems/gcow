@@ -37,11 +37,11 @@ typedef enum {
 
 /* Data type */
 typedef enum {
-  data_type_none   = 0, /* unspecified type */
-  data_type_int32  = 1, /* 32-bit signed integer */
-  data_type_int64  = 2, /* 64-bit signed integer */
-  data_type_float  = 3, /* single precision floating point */
-  data_type_double = 4  /* double precision floating point */
+  dtype_none   = 0, /* unspecified type */
+  dtype_int32  = 1, /* 32-bit signed integer */
+  dtype_int64  = 2, /* 64-bit signed integer */
+  dtype_float  = 3, /* single precision floating point */
+  dtype_double = 4  /* double precision floating point */
 } data_type;
 
 /**
@@ -104,20 +104,20 @@ static const uchar PERM_2D[16] = {
  * @param tolerance Absolute error tolerance.
  * @return Maximum error tolerance (x=1) for the given precision.
 */
-double set_output_accuracy(zfp_output *output, double tolerance);
-zfp_input* alloc_zfp_input(void);
-zfp_output* alloc_zfp_output(stream *data);
+double set_zfp_output_accuracy(zfp_output *output, double tolerance);
+zfp_input *alloc_zfp_input(void);
+zfp_output *alloc_zfp_output(void);
 void free_zfp_input(zfp_input* input);
 void free_zfp_output(zfp_output* output);
 void cleanup(zfp_input *input, zfp_output *output);
-zfp_input* set_zfp_input(void* data, data_type dtype, uint dim, ...);
+zfp_input *init_zfp_input(void *data, data_type dtype, uint dim, ...);
+zfp_output *init_zfp_output(const zfp_input *input);
 uint is_reversible(const zfp_output* output);
 uint get_input_dimension(const zfp_input* input);
 size_t get_input_num_blocks(const zfp_input* input);
 size_t get_input_size(const zfp_input* input, size_t* shape);
 size_t get_dtype_size(const zfp_input* input);
 uint get_input_precision(const zfp_input* input);
-size_t get_output_max_size(const zfp_output *output, const zfp_input *input);
-
+size_t get_max_output_bytes(const zfp_output *output, const zfp_input *input);
 
 #endif // TYPES_H
