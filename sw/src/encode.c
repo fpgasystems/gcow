@@ -41,21 +41,21 @@
 void pad_partial_block(float* block, size_t n, ptrdiff_t s)
 {
   switch (n) {
-  case 0:
-    block[0 * s] = 0;
-  /* FALLTHROUGH */
-  case 1:
-    //* Fill the next position by copying the previous value.
-    block[1 * s] = block[0 * s];
-  /* FALLTHROUGH */
-  case 2:
-    block[2 * s] = block[1 * s];
-  /* FALLTHROUGH */
-  case 3:
-    block[3 * s] = block[0 * s];
-  /* FALLTHROUGH */
-  default:
-    break;
+    case 0:
+      block[0 * s] = 0;
+    /* FALLTHROUGH */
+    case 1:
+      //* Fill the next position by copying the previous value.
+      block[1 * s] = block[0 * s];
+    /* FALLTHROUGH */
+    case 2:
+      block[2 * s] = block[1 * s];
+    /* FALLTHROUGH */
+    case 3:
+      block[3 * s] = block[0 * s];
+    /* FALLTHROUGH */
+    default:
+      break;
   }
 }
 
@@ -190,10 +190,14 @@ void fwd_lift_vector(int32 *p, ptrdiff_t s)
 {
   //* Gather 4-vector [x y z w] from p.
   int32 x, y, z, w;
-  x = *p; p += s;
-  y = *p; p += s;
-  z = *p; p += s;
-  w = *p; p += s;
+  x = *p;
+  p += s;
+  y = *p;
+  p += s;
+  z = *p;
+  p += s;
+  w = *p;
+  p += s;
 
   /*
   ** non-orthogonal transform
@@ -202,28 +206,41 @@ void fwd_lift_vector(int32 *p, ptrdiff_t s)
   **        (-4  4  4 -4) (z)
   **        (-2  6 -6  2) (w)
 
-  * The above is essentially the transform matix 
+  * The above is essentially the transform matix
   * (similar to the cosine transform matrix in JPEG)
   */
-  x += w; x >>= 1; w -= x;
-  z += y; z >>= 1; y -= z;
-  x += z; x >>= 1; z -= x;
-  w += y; w >>= 1; y -= w;
-  w += y >> 1; y -= w >> 1;
+  x += w;
+  x >>= 1;
+  w -= x;
+  z += y;
+  z >>= 1;
+  y -= z;
+  x += z;
+  x >>= 1;
+  z -= x;
+  w += y;
+  w >>= 1;
+  y -= w;
+  w += y >> 1;
+  y -= w >> 1;
 
   /**
-  * ^ After applying the transform matrix 
+  * ^ After applying the transform matrix
   * ^ on a 4-vector (x = 10, y = 20, z = 30, and w = 40):
     x' = (4x + 4y + 4z + 4w)  / 16 = 25
     y' = (5x + y - z - 5w)    / 16 = -11.875
     z' = (-4x + 4y + 4z - 4w) / 16 = 2.5
-    w' = (-2x + 6y - 6z + 2w) / 16 = 8.75 
+    w' = (-2x + 6y - 6z + 2w) / 16 = 8.75
    */
 
-  p -= s; *p = w;
-  p -= s; *p = z;
-  p -= s; *p = y;
-  p -= s; *p = x;
+  p -= s;
+  *p = w;
+  p -= s;
+  *p = z;
+  p -= s;
+  *p = y;
+  p -= s;
+  *p = x;
 
   /**
   * ^ The result is then stored in reverse order.
@@ -289,7 +306,7 @@ uint encode_partial_bitplanes(stream *const out_data,
     //* (The first n bits "are encoded verbatim.")
     x = stream_write_bits(&s, x, m);
 
-    //^ Step 3: Unary run-length encode remainder of bit plane.
+    //^ Step 3: Bitplane embedded (unary run-length) encode remainder of bit plane.
     //* Shift `x` right by 1 bit and increment `n` until `x` becomes 0.
     for (; bits && n < block_size; x >>= 1, n++) {
       //* The number of bits in `x` still to be encoded.
@@ -363,12 +380,12 @@ uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
 
   //* Perform forward decorrelation transform.
   switch (dim) {
-  case 2:
-    fwd_decorrelate_2d_block(iblock);
-    break;
-  //TODO: Implement other dimensions.
-  default:
-    break;
+    case 2:
+      fwd_decorrelate_2d_block(iblock);
+      break;
+    //TODO: Implement other dimensions.
+    default:
+      break;
   }
   //* Reorder signed coefficients and convert to unsigned integer
   fwd_reorder_int2uint(ublock, iblock, PERM_2D, block_size);
@@ -438,89 +455,4 @@ uint encode_fblock(zfp_output* output, const float *fblock, size_t dim)
   }
   //* Return the number of encoded bits.
   return bits;
-}
-
-void encode_2d_block(uint32 *encoded, const float *fblock,
-                     const zfp_input *input)
-{
-  for (int i = 0; i < BLOCK_SIZE_2D; i++)
-    encoded[i] = (uint32)fblock[i];
-}
-
-void encode_4d_block(uint32 *encoded, const float *block,
-                     const zfp_input *input)
-{
-  //TODO: Implement 4d encoding
-  for (int i = 0; i < BLOCK_SIZE_4D; i++)
-    encoded[i] = (uint32)block[i];
-}
-
-void encode_strided_2d_block(uint32 *encoded, const float *raw,
-                             ptrdiff_t sx, ptrdiff_t sy, const zfp_input *input)
-{
-  float block[BLOCK_SIZE_2D];
-
-  //TODO: Cache alignment?
-  gather_2d_block(block, raw, sx, sy);
-  encode_2d_block(encoded, block, input);
-}
-
-void encode_strided_partial_2d_block(uint32 *encoded, const float *raw,
-                                     size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy,
-                                     const zfp_input *input)
-{
-  float block[BLOCK_SIZE_2D];
-
-  //TODO: Cache alignment?
-  gather_partial_2d_block(block, raw, nx, ny, sx, sy);
-  encode_2d_block(encoded, block, input);
-}
-
-void encode_strided_4d_block(uint32 *encoded, const float *raw,
-                             ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw,
-                             const zfp_input *input)
-{
-  float block[BLOCK_SIZE_4D];
-
-  //TODO: Cache alignment?
-  gather_4d_block(block, raw, sx, sy, sz, sw);
-  encode_4d_block(encoded, block, input);
-}
-
-void encode_strided_partial_4d_block(uint32 *encoded, const float *raw,
-                                     size_t nx, size_t ny, size_t nz, size_t nw,
-                                     ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw,
-                                     const zfp_input *input)
-{
-  float block[BLOCK_SIZE_4D];
-
-  //TODO: Cache alignment?
-  gather_partial_4d_block(block, raw, nx, ny, nz, nw, sx, sy, sz, sw);
-  encode_4d_block(encoded, block, input);
-}
-
-void compress_2d(uint32 *compressed, const zfp_input* input)
-{
-  const float* data = (const float*)input->data;
-  size_t nx = input->nx;
-  size_t ny = input->ny;
-  ptrdiff_t sx = input->sx ? input->sx : 1;
-  ptrdiff_t sy = input->sy ? input->sy : (ptrdiff_t)nx;
-
-  //* Compress array one block of 4x4 values at a time
-  size_t iblock = 0;
-  for (size_t y = 0; y < ny; y += 4) {
-    for (size_t x = 0; x < nx; x += 4, iblock++) {
-      //! Writing sequentially to the output stream for now.
-      uint32 *encoded = compressed + BLOCK_SIZE_2D * iblock;
-      const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
-      printf("Encoding block (%ld, %ld)\n", y, x);
-      if (nx - x < 4 || ny - y < 4) {
-        encode_strided_partial_2d_block(encoded, raw, MIN(nx - x, 4u), MIN(ny - y, 4u),
-                                        sx, sy, input);
-      } else {
-        encode_strided_2d_block(encoded, raw, sx, sy, input);
-      }
-    }
-  }
 }

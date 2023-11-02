@@ -13,6 +13,94 @@
 // }
 
 
+void test_encode_2d_block(uint32 *encoded, const float *fblock,
+                          const zfp_input *input)
+{
+  for (int i = 0; i < BLOCK_SIZE_2D; i++)
+    encoded[i] = (uint32)fblock[i];
+}
+
+void test_encode_4d_block(uint32 *encoded, const float *block,
+                          const zfp_input *input)
+{
+  //TODO: Implement 4d encoding
+  for (int i = 0; i < BLOCK_SIZE_4D; i++)
+    encoded[i] = (uint32)block[i];
+}
+
+void test_encode_strided_2d_block(uint32 *encoded, const float *raw,
+                                  ptrdiff_t sx, ptrdiff_t sy, const zfp_input *input)
+{
+  float block[BLOCK_SIZE_2D];
+
+  //TODO: Cache alignment?
+  gather_2d_block(block, raw, sx, sy);
+  test_encode_2d_block(encoded, block, input);
+}
+
+void test_encode_strided_partial_2d_block(uint32 *encoded, const float *raw,
+    size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy,
+    const zfp_input *input)
+{
+  float block[BLOCK_SIZE_2D];
+
+  //TODO: Cache alignment?
+  gather_partial_2d_block(block, raw, nx, ny, sx, sy);
+  test_encode_2d_block(encoded, block, input);
+}
+
+void test_encode_strided_4d_block(uint32 *encoded, const float *raw,
+                                  ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw,
+                                  const zfp_input *input)
+{
+  float block[BLOCK_SIZE_4D];
+
+  //TODO: Cache alignment?
+  gather_4d_block(block, raw, sx, sy, sz, sw);
+  test_encode_4d_block(encoded, block, input);
+}
+
+void test_encode_strided_partial_4d_block(uint32 *encoded, const float *raw,
+    size_t nx, size_t ny, size_t nz, size_t nw,
+    ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw,
+    const zfp_input *input)
+{
+  float block[BLOCK_SIZE_4D];
+
+  //TODO: Cache alignment?
+  gather_partial_4d_block(block, raw, nx, ny, nz, nw, sx, sy, sz, sw);
+  test_encode_4d_block(encoded, block, input);
+}
+
+void test_2d(uint32 *compressed, const zfp_input* input)
+{
+  const float* data = (const float*)input->data;
+  size_t nx = input->nx;
+  size_t ny = input->ny;
+  ptrdiff_t sx = input->sx ? input->sx : 1;
+  ptrdiff_t sy = input->sy ? input->sy : (ptrdiff_t)nx;
+
+  //* Compress array one block of 4x4 values at a time
+  size_t iblock = 0;
+  for (size_t y = 0; y < ny; y += 4) {
+    for (size_t x = 0; x < nx; x += 4, iblock++) {
+      //! Writing sequentially to the output stream for now.
+      uint32 *encoded = compressed + BLOCK_SIZE_2D * iblock;
+      const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
+      printf("Encoding block (%ld, %ld)\n", y, x);
+      if (nx - x < 4 || ny - y < 4) {
+        test_encode_strided_partial_2d_block(encoded, raw, MIN(nx - x, 4u), MIN(ny - y,
+                                             4u),
+                                             sx, sy, input);
+      } else {
+        test_encode_strided_2d_block(encoded, raw, sx, sy, input);
+      }
+    }
+  }
+}
+
+/* ------------------ Test Cases ------------------ */
+
 TEST(encode, gather_2d_block)
 {
   float raw[4][4]; //* 4x4 source array
@@ -55,7 +143,7 @@ TEST(encode, gather_4d_block)
   }
 }
 
-TEST(encode, encode_strided_2d_block)
+TEST(encode, test_encode_strided_2d_block)
 {
   zfp_input specs;
   float raw[4][4]; //* 4x4 source array
@@ -67,7 +155,7 @@ TEST(encode, encode_strided_2d_block)
       raw[y][x] = (float)(x + 4 * y + 1);
 
   //* Test encode_strided_2d_block
-  encode_strided_2d_block(encoded, (const float*)raw, 1, 4, &specs);
+  test_encode_strided_2d_block(encoded, (const float*)raw, 1, 4, &specs);
 
   //* Check correctness of encoded values
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -75,8 +163,8 @@ TEST(encode, encode_strided_2d_block)
   }
 }
 
-//* Test function for encode_strided_4d_block
-TEST(encode, encode_strided_4d_block)
+//* Test function for test_encode_strided_4d_block
+TEST(encode, test_encode_strided_4d_block)
 {
   zfp_input specs;
   float raw[4][4][4][4]; //* 4x4x4x4 source array
@@ -89,8 +177,8 @@ TEST(encode, encode_strided_4d_block)
         for (int x = 0; x < 4; x++)
           raw[w][z][y][x] = (float)(x + 4 * y + 16 * z + 64 * w + 1);
 
-  //* Test encode_strided_4d_block
-  encode_strided_4d_block(encoded, (const float*)raw, 1, 4, 16, 64, &specs);
+  //* Test test_encode_strided_4d_block
+  test_encode_strided_4d_block(encoded, (const float*)raw, 1, 4, 16, 64, &specs);
 
   //* Check correctness of encoded values
   for (int i = 0; i < BLOCK_SIZE_4D; i++) {
@@ -98,7 +186,7 @@ TEST(encode, encode_strided_4d_block)
   }
 }
 
-TEST(encode, encode_strided_partial_2d_block)
+TEST(encode, test_encode_strided_partial_2d_block)
 {
   zfp_input specs;
   const int ROWS = 2;
@@ -111,8 +199,8 @@ TEST(encode, encode_strided_partial_2d_block)
     for (int x = 0; x < COLS; x++)
       raw[y][x] = (float)(x + COLS * y + 1);
 
-  //* Test encode_strided_partial_2d_block
-  encode_strided_partial_2d_block(
+  //* Test test_encode_strided_partial_2d_block
+  test_encode_strided_partial_2d_block(
     encoded, (const float*)raw, COLS, ROWS, 1, COLS, &specs);
 
   //* Check correctness of the encoding size.
@@ -146,7 +234,7 @@ TEST(encode, encode_strided_partial_2d_block)
   }
 }
 
-TEST(encode, compress_2d)
+TEST(encode, test_2d)
 {
 
   zfp_input specs;
@@ -178,8 +266,8 @@ TEST(encode, compress_2d)
   printf("Raw values:\n");
   print_2d<float>(data, specs.nx, specs.ny);
 
-  //* Test compress_2d
-  compress_2d(compressed, &specs);
+  //* Test test_2d
+  test_2d(compressed, &specs);
 
   printf("Encoded values:\n");
   print_2d<uint32>(compressed, encoded_x, encoded_y, 3);
