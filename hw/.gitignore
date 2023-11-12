@@ -1,4 +1,4 @@
-host 
+*_host
 src/hls_output
 hls_output
 *csv
@@ -28,3 +28,4 @@ _x.*
 *.xml
 ext_metadata.json
 .run/
+**/*.orig

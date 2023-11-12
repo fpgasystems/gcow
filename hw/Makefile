@@ -1,6 +1,7 @@
 SHELL := bash
 
-.PHONY: help
+#* Primary build targets
+.PHONY: xclbin exe all help clean cleanall run
 
 # e.g., 
 # time make all TARGET=hw PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1 > out 2>&1
@@ -29,32 +30,34 @@ help:
 # VPP := $(XILINX_VITIS)/bin/v++
 VPP := v++
 EMCONFIGUTIL := $(XILINX_VITIS)/bin/emconfigutil
-TARGET := sw_emu
+TARGET := hw_emu
 PLATFORM := xilinx_u250_gen3x16_xdma_4_1_202210_1
 
+#* Directories
+SRC_DIR = src
+INCLUDE_DIR = include
 XCLBIN_DIR := ./xclbin
 TEMP_DIR := ./_x.$(TARGET)
-# sources
-KERNEL_SRC := src/gcow.cpp
-HOST_SRC := src/host.cpp
 
-# targets
-HOST_EXE := host
+#* Sources
+KERNEL_SRC := $(SRC_DIR)/gcow.cpp
+HOST_SRC := $(SRC_DIR)/host.cpp
+
+#* Targets
+KERNEL = gcow
+HOST_EXE := $(KERNEL)_host
 
 XOS := $(XCLBIN_DIR)/gcow.$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/gcow.$(TARGET).xclbin
 EMCONFIG_FILE := ./emconfig.json
 
-VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) --save-temps --config connectivity.cfg
-CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include
+VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --save-temps --config connectivity.cfg
+CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(INCLUDE_DIR)
 LFLAGS := -L$(XILINX_XRT)/lib -lxilinxopencl -pthread -lrt
 NUMDEVICES := 1
 
 # run time args
 # EXE_OPT := gcow.$(TARGET).xclbin
-
-# primary build targets
-.PHONY: xclbin exe all
 
 xclbin: $(XCLBIN)
 
@@ -62,20 +65,18 @@ exe: $(HOST_EXE)
 
 all: exe xclbin $(EMCONFIG_FILE)
 
-
-
-# * Compile kernels into Xilinx object file.
+#*  Compile kernels into Xilinx object file.
 $(XOS): $(KERNEL_SRC)
 # $(RM) $@
 	mkdir -p $(XCLBIN_DIR)
-	$(VPP) $(VPP_COMMON_OPTS) -c -k gcow --temp_dir $(TEMP_DIR) -o $@ $+
+	$(VPP) $(VPP_COMMON_OPTS) -c -k $(KERNEL) --temp_dir $(TEMP_DIR) -o $@ $+
 
-# * Link kernel object files into Xilinx binary file.
+#*  Link kernel object files into Xilinx binary file.
 $(XCLBIN): $(XOS)
 	mkdir -p $(XCLBIN_DIR)
 	$(VPP) $(VPP_COMMON_OPTS) -l --temp_dir $(TEMP_DIR) -o $@ $+ # $(VPP_LINK_OPTS)
 
-# * Compile host application written in C++ into executable.
+#*  Compile host application written in C++ into executable.
 $(HOST_EXE): $(HOST_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
@@ -91,12 +92,9 @@ else
 	./$(HOST_EXE) $(XCLBIN)
 endif
 
-
-.PHONY: clean cleanall
-
 clean:
-	-$(RM) $(EMCONFIG_FILE) $(HOST_EXE) $(XCLBIN) *.xclbin *.xo $(XOS) *.log *.csv *summary *.json *.xml
+	-$(RM) -rf $(EMCONFIG_FILE) $(HOST_EXE) $(XCLBIN) *.xclbin *.xo $(XOS) *.log *.csv *summary *.json *.xml **/*.orig
 	
 cleanall: clean
-	-$(RM) -r _x.* .Xil .run
-	-$(RM) -r $(XCLBIN_DIR)
+	-$(RM) -rf _x.* .Xil .run
+	-$(RM) -rf $(XCLBIN_DIR)
