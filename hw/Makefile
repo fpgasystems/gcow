@@ -40,8 +40,8 @@ XCLBIN_DIR := ./xclbin
 TEMP_DIR := ./_x.$(TARGET)
 
 #* Sources
-KERNEL_SRC := $(SRC_DIR)/gcow.cpp
-HOST_SRC := $(SRC_DIR)/host.cpp
+KERNEL_SRC := $(SRC_DIR)/gcow.cpp $(SRC_DIR)/common.cpp
+HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
 
 #* Targets
 KERNEL = gcow

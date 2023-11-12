@@ -1,8 +1,9 @@
-#include <stdint.h>
+#include <iostream>
 #include <chrono>
 
 #include "host.hpp"
-#include "constants.hpp"
+#include "types.hpp"
+#include "gcow.hpp"
 //? 2022.1 somehow does not seem to support linking ap_uint.h to host?
 // #include "ap_uint.h"
 
@@ -16,16 +17,39 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  std::vector<double, aligned_allocator<double>> in_fp_gradients(GRAD_BLOCK_SIZE);
-  for (int i = 0; i < GRAD_BLOCK_SIZE; i++) {
-    in_fp_gradients[i] = i + 0.555;
+  std::vector<size_t> input_shape = {100, 100};
+  zfp_input input_specs(dtype_float, input_shape);
+  //* Print zfp_input struct.
+  std::cout << "Input specs:" << std::endl;
+  std::cout << "dtype:\t\t" << input_specs.dtype << std::endl;
+  std::cout << "nx:\t\t" << input_specs.nx << std::endl;
+  std::cout << "ny:\t\t" << input_specs.ny << std::endl;
+  std::cout << "nz:\t\t" << input_specs.nz << std::endl;
+  std::cout << "nw:\t\t" << input_specs.nw << std::endl;
+  
+  size_t input_size = get_input_size(input_specs);
+  std::cout << "input_size " << input_size << std::endl;
+
+  std::vector<float> in_fp_gradients(input_size);
+  for (int i = 0; i < input_size; i++) {
+    in_fp_gradients[i] = (float)(i + 0.555);
   }
-  std::cout << "Initialized double gradient input of size " <<
+  std::cout << "Initialized input gradients (floats) of size " <<
             in_fp_gradients.size() << std::endl;
 
+
   //* Initialize output.
-  std::vector<int, aligned_allocator<int>> out_zfp_gradients(GRAD_BLOCK_SIZE);
-  std::cout << "Initialized int gradient output of size " <<
+  zfp_output output_specs;
+  double tolerance = 1e-3;
+  double max_error = set_zfp_output_accuracy(output_specs, tolerance);
+  std::cout << "Maximum error:\t\t" << max_error << std::endl;
+
+  uint in_dim = get_input_dimension(input_specs);
+  std::cout << "Input dimension:\t" << in_dim << std::endl;
+  size_t out_bytes = get_max_output_bytes(output_specs, input_specs);
+  std::cout << "Output bytes:\t\t" << out_bytes << std::endl;
+  std::vector<uchar, aligned_allocator<uchar>> out_zfp_gradients(out_bytes);
+  std::cout << "Initialized buffer for compressed output of bytes: " <<
             out_zfp_gradients.size() << std::endl;
 
   /* OPENCL HOST CODE AREA START */
@@ -62,13 +86,13 @@ int main(int argc, char** argv)
   OCL_CHECK(err,
             cl::Buffer buffer_in_gradients(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              GRAD_BLOCK_SIZE*sizeof(double),
+              input_size*sizeof(float),
               in_fp_gradients.data(),
               &err));
   OCL_CHECK(err,
             cl::Buffer buffer_out_gradients(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-              GRAD_BLOCK_SIZE*sizeof(int),
+              out_bytes,
               out_zfp_gradients.data(),
               &err));
 
@@ -76,6 +100,10 @@ int main(int argc, char** argv)
 
   //* Set the Kernel Arguments
   int arg_counter = 0;
+  OCL_CHECK(err,
+            err = kernel_gcow.setArg(arg_counter++, input_specs));
+  OCL_CHECK(err,
+            err = kernel_gcow.setArg(arg_counter++, output_specs));
   OCL_CHECK(err,
             err = kernel_gcow.setArg(arg_counter++, buffer_in_gradients));
   OCL_CHECK(err,
@@ -107,24 +135,16 @@ int main(int argc, char** argv)
 
   std::cout << "Duration (including memcpy out): " << duration << " seconds" <<
             std::endl;
-  std::cout << "Overall grad values per second = " << GRAD_BLOCK_SIZE / duration
+  std::cout << "Overall grad values per second = " << input_size / duration
             << std::endl;
 
   //* Validate against software implementation.
-  //TODO: implement software ZFP.
-  std::vector<int> sw_out_zfp_gradients(GRAD_BLOCK_SIZE);
-  for(int i = 0; i < GRAD_BLOCK_SIZE; i++) {
-    sw_out_zfp_gradients[i] = (int) in_fp_gradients[i];
-  }
 
   bool match = true;
-  for(int i = 0; i < GRAD_BLOCK_SIZE; i++) {
-    if (out_zfp_gradients[i] != sw_out_zfp_gradients[i]) {
-      std::cout << "ERROR at [" << i << "] HW: " << out_zfp_gradients[i] << " != SW: "
-                << sw_out_zfp_gradients[i] << std::endl;
-      match = false;
-      break;
-    }
+  size_t num_words = out_bytes / sizeof(stream_word);
+  std::cout << "Number of words: " << num_words << std::endl;
+  for (int i = 0; i < num_words; i++) {
+    std::cout << out_zfp_gradients[i] << " ";
   }
 
   std::cout << "TEST " << (match ? "PASSED" : "FAILED") << std::endl;

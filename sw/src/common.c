@@ -142,7 +142,7 @@ size_t get_input_num_blocks(const zfp_input* input)
   }
 }
 
-size_t get_input_size(const zfp_input* input, size_t* shape)
+size_t get_input_size(const zfp_input *input, size_t *shape)
 {
   if (shape)
     switch (get_input_dimension(input)) {

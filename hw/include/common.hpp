@@ -1,10 +1,14 @@
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef COMMON_HPP
+#define COMMON_HPP
 
 #include <stddef.h>
 #include <stdint.h>
 #include <limits.h>
 #include <math.h>
+// #include <ap_int.h>
+#include <vector>
+
+#define DIM_MAX 4 /* maximum number of array dimensions */
 
 /* default compression parameters */
 #define ZFP_MIN_BITS     1 /* minimum number of bits per block */
@@ -62,4 +66,4 @@ int exceeded_maxbits(uint maxbits, uint maxprec, uint size);
 */
 uint get_precision(int maxexp, uint maxprec, int minexp, int dim);
 
-#endif /* COMMON_H */
+#endif /* COMMON_HPP */

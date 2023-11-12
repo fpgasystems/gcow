@@ -1,6 +1,7 @@
 #ifndef GCOW_HPP
 #define GCOW_HPP
 
+#include "types.hpp"
 
 //* Since the the host and C++ kernel code are developed and compiled independently, 
 //* wrap the kernel function declaration with the extern “C” linkage specifier to 
@@ -8,8 +9,10 @@
 extern "C" {
 
   void gcow(
-    const double *in_fp_gradients,
-    int *out_zfp_gradients
+    const zfp_input input_specs,
+    const zfp_output output_specs,
+    const float *in_fp_gradients,
+    stream_word *out_zfp_gradients
   );
 
 }
