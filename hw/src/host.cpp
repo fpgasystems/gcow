@@ -1,9 +1,12 @@
-#include <iostream>
 #include <chrono>
+#include <cassert>
 
 #include "host.hpp"
 #include "types.hpp"
-#include "gcow.hpp"
+// #include "stream.hpp"
+// #include "gcow.hpp"
+// #include "common.hpp"
+
 //? 2022.1 somehow does not seem to support linking ap_uint.h to host?
 // #include "ap_uint.h"
 
@@ -17,18 +20,21 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  std::vector<size_t> input_shape = {100, 100};
-  zfp_input input_specs(dtype_float, input_shape);
-  //* Print zfp_input struct.
+  uint in_dim = 2;
+  size_t shape[DIM_MAX] = {100, 100};
+  zfp_input in_specs(dtype_float, shape, in_dim);
+  assert(in_dim == get_input_dimension(in_specs));
+
   std::cout << "Input specs:" << std::endl;
-  std::cout << "dtype:\t\t" << input_specs.dtype << std::endl;
-  std::cout << "nx:\t\t" << input_specs.nx << std::endl;
-  std::cout << "ny:\t\t" << input_specs.ny << std::endl;
-  std::cout << "nz:\t\t" << input_specs.nz << std::endl;
-  std::cout << "nw:\t\t" << input_specs.nw << std::endl;
-  
-  size_t input_size = get_input_size(input_specs);
+  std::cout << "dtype:\t\t" << in_specs.dtype << std::endl;
+  std::cout << "nx:\t\t" << in_specs.nx << std::endl;
+  std::cout << "ny:\t\t" << in_specs.ny << std::endl;
+  std::cout << "nz:\t\t" << in_specs.nz << std::endl;
+  std::cout << "nw:\t\t" << in_specs.nw << std::endl;
+
+  size_t input_size = get_input_size(in_specs);
   std::cout << "input_size " << input_size << std::endl;
+  std::cout << "Input dimension:\t" << in_dim << std::endl;
 
   std::vector<float> in_fp_gradients(input_size);
   for (int i = 0; i < input_size; i++) {
@@ -37,18 +43,13 @@ int main(int argc, char** argv)
   std::cout << "Initialized input gradients (floats) of size " <<
             in_fp_gradients.size() << std::endl;
 
-
   //* Initialize output.
-  zfp_output output_specs;
-  double tolerance = 1e-3;
-  double max_error = set_zfp_output_accuracy(output_specs, tolerance);
-  std::cout << "Maximum error:\t\t" << max_error << std::endl;
+  zfp_output out_specs;
+  size_t max_output_bytes = get_max_output_bytes(out_specs, in_specs);
 
-  uint in_dim = get_input_dimension(input_specs);
-  std::cout << "Input dimension:\t" << in_dim << std::endl;
-  size_t out_bytes = get_max_output_bytes(output_specs, input_specs);
-  std::cout << "Output bytes:\t\t" << out_bytes << std::endl;
-  std::vector<uchar, aligned_allocator<uchar>> out_zfp_gradients(out_bytes);
+  std::cout << "Max. output bytes:\t\t" << max_output_bytes << std::endl;
+  std::vector<uchar, aligned_allocator<uchar>> out_zfp_gradients(
+        max_output_bytes);
   std::cout << "Initialized buffer for compressed output of bytes: " <<
             out_zfp_gradients.size() << std::endl;
 
@@ -83,6 +84,13 @@ int main(int argc, char** argv)
   // ensure that user buffer is used when user create Buffer/Mem object with CL_MEM_USE_HOST_PTR
 
   //* Allocate buffers in Global Memory
+  std::vector<size_t, aligned_allocator<size_t>> in_shape(shape, shape + in_dim);
+  OCL_CHECK(err,
+            cl::Buffer buffer_in_shape(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              in_dim*sizeof(size_t),
+              in_shape.data(),
+              &err));
   OCL_CHECK(err,
             cl::Buffer buffer_in_gradients(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
@@ -92,8 +100,16 @@ int main(int argc, char** argv)
   OCL_CHECK(err,
             cl::Buffer buffer_out_gradients(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-              out_bytes,
+              max_output_bytes,
               out_zfp_gradients.data(),
+              &err));
+
+  size_t out_bytes = 0;
+  OCL_CHECK(err,
+            cl::Buffer buffer_out_bytes(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+              sizeof(size_t),
+              &out_bytes,
               &err));
 
   std::cout << "Finish allocating buffers ...\n";
@@ -101,20 +117,24 @@ int main(int argc, char** argv)
   //* Set the Kernel Arguments
   int arg_counter = 0;
   OCL_CHECK(err,
-            err = kernel_gcow.setArg(arg_counter++, input_specs));
+            err = kernel_gcow.setArg(arg_counter++, uint(in_dim)));
   OCL_CHECK(err,
-            err = kernel_gcow.setArg(arg_counter++, output_specs));
+            err = kernel_gcow.setArg(arg_counter++, buffer_in_shape));
   OCL_CHECK(err,
             err = kernel_gcow.setArg(arg_counter++, buffer_in_gradients));
   OCL_CHECK(err,
             err = kernel_gcow.setArg(arg_counter++, buffer_out_gradients));
+  OCL_CHECK(err,
+            err = kernel_gcow.setArg(arg_counter++, buffer_out_bytes));
 
   //* Copy input data to device global memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
     //* Input data objects
+    buffer_in_shape,
     buffer_in_gradients,
-    buffer_out_gradients
+    buffer_out_gradients,
+    buffer_out_bytes
   }, 0 /* 0: from host to device */));
 
   std::cout << "Launching kernel...\n";
@@ -126,6 +146,9 @@ int main(int argc, char** argv)
   //* Copy Result from Device Global Memory to Host Local Memory
   OCL_CHECK(err,
             err = q.enqueueMigrateMemObjects({buffer_out_gradients},
+                  CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
+  OCL_CHECK(err,
+            err = q.enqueueMigrateMemObjects({buffer_out_bytes},
                   CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
 
@@ -141,11 +164,13 @@ int main(int argc, char** argv)
   //* Validate against software implementation.
 
   bool match = true;
-  size_t num_words = out_bytes / sizeof(stream_word);
-  std::cout << "Number of words: " << num_words << std::endl;
-  for (int i = 0; i < num_words; i++) {
-    std::cout << out_zfp_gradients[i] << " ";
-  }
+
+  std::cout << "Compressed size: " << out_bytes << " bytes" << std::endl;
+  // size_t num_words = max_output_bytes / sizeof(stream_word);
+  // std::cout << "Number of words: " << num_words << std::endl;
+  // for (int i = 0; i < num_words; i++) {
+  //   std::cout << out_zfp_gradients[i] << " ";
+  // }
 
   std::cout << "TEST " << (match ? "PASSED" : "FAILED") << std::endl;
   return (match ? EXIT_SUCCESS : EXIT_FAILURE);

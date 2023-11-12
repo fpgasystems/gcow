@@ -36,13 +36,17 @@ PLATFORM := xilinx_u250_gen3x16_xdma_4_1_202210_1
 #* Directories
 SRC_DIR = src
 INCLUDE_DIR = include
+XILINX_VITIS_HLS := /tools/Xilinx/Vitis_HLS/2022.1
 XCLBIN_DIR := ./xclbin
 TEMP_DIR := ./_x.$(TARGET)
 
 #* Sources
-KERNEL_SRC := $(SRC_DIR)/gcow.cpp $(SRC_DIR)/common.cpp
-HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
+KERNEL_SRC = $(wildcard $(SRC_DIR)/*.cpp)
+#* (Use immediate expansion `:=` to avoid re-evaluation of `wildcard`.)
+KERNEL_SRC := $(filter-out $(SRC_DIR)/host.cpp,$(KERNEL_SRC))
 
+HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
+	
 #* Targets
 KERNEL = gcow
 HOST_EXE := $(KERNEL)_host
@@ -52,7 +56,7 @@ XCLBIN := $(XCLBIN_DIR)/gcow.$(TARGET).xclbin
 EMCONFIG_FILE := ./emconfig.json
 
 VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --save-temps --config connectivity.cfg
-CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(INCLUDE_DIR)
+CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(XILINX_VITIS_HLS)/include -I$(INCLUDE_DIR)
 LFLAGS := -L$(XILINX_XRT)/lib -lxilinxopencl -pthread -lrt
 NUMDEVICES := 1
 

@@ -14,6 +14,8 @@ INCLUDE_DIR = include
 
 #* Source files
 SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
+test:
+	@echo $(SRC_FILES)
 TEST_FILES = $(wildcard $(TEST_DIR)/*.c)
 TEST_ENCODE = $(TEST_DIR)/test_encode.cpp
 TEST_ZFP = $(TEST_DIR)/test_zfp.cpp

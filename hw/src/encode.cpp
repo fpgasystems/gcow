@@ -38,7 +38,7 @@
  *      4 5 6 4
  *      1 2 3 1
 */
-void pad_partial_block(float* block, size_t n, ptrdiff_t s)
+void pad_partial_block(float block[BLOCK_SIZE_4D], size_t n, ptrdiff_t s)
 {
   switch (n) {
     case 0:
@@ -59,7 +59,7 @@ void pad_partial_block(float* block, size_t n, ptrdiff_t s)
   }
 }
 
-void gather_2d_block(float *block, const float *raw,
+void gather_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
   for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
@@ -69,7 +69,7 @@ void gather_2d_block(float *block, const float *raw,
     }
 }
 
-void gather_partial_2d_block(float *block, const float *raw,
+void gather_partial_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
                              size_t nx, size_t ny,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
@@ -87,43 +87,43 @@ void gather_partial_2d_block(float *block, const float *raw,
     pad_partial_block(block + x, ny, 4);
 }
 
-void gather_4d_block(float *block, const float *raw,
-                     ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
-{
-  size_t x, y, z, w;
-  for (w = 0; w < 4; w++, raw += sw - 4 * sz)
-    for (z = 0; z < 4; z++, raw += sz - 4 * sy)
-      for (y = 0; y < 4; y++, raw += sy - 4 * sx)
-        for (x = 0; x < 4; x++, raw += sx)
-          *block++ = *raw;
-}
+// void gather_4d_block(float *block, const float *raw,
+//                      ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
+// {
+//   size_t x, y, z, w;
+//   for (w = 0; w < 4; w++, raw += sw - 4 * sz)
+//     for (z = 0; z < 4; z++, raw += sz - 4 * sy)
+//       for (y = 0; y < 4; y++, raw += sy - 4 * sx)
+//         for (x = 0; x < 4; x++, raw += sx)
+//           *block++ = *raw;
+// }
 
-void gather_partial_4d_block(float *block, const float *raw,
-                             size_t nx, size_t ny, size_t nz, size_t nw,
-                             ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
-{
-  size_t x, y, z, w;
-  for (w = 0; w < nw; w++, raw += sw - (ptrdiff_t)nz * sz) {
-    for (z = 0; z < nz; z++, raw += sz - (ptrdiff_t)ny * sy) {
-      for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
-        for (x = 0; x < nx; x++, raw += sx) {
-          block[64 * w + 16 * z + 4 * y + x] = *raw;
-        }
-        //* Pad x dimension if the number of elements gathered is less than 4.
-        pad_partial_block(block + 64 * w + 16 * z + 4 * y, nx, 1);
-      }
-      for (x = 0; x < 4; x++)
-        pad_partial_block(block + 64 * w + 16 * z + x, ny, 4);
-    }
-    for (y = 0; y < 4; y++)
-      for (x = 0; x < 4; x++)
-        pad_partial_block(block + 64 * w + 4 * y + x, nz, 16);
-  }
-  for (z = 0; z < 4; z++)
-    for (y = 0; y < 4; y++)
-      for (x = 0; x < 4; x++)
-        pad_partial_block(block + 16 * z + 4 * y + x, nw, 64);
-}
+// void gather_partial_4d_block(float *block, const float *raw,
+//                              size_t nx, size_t ny, size_t nz, size_t nw,
+//                              ptrdiff_t sx, ptrdiff_t sy, ptrdiff_t sz, ptrdiff_t sw)
+// {
+//   size_t x, y, z, w;
+//   for (w = 0; w < nw; w++, raw += sw - (ptrdiff_t)nz * sz) {
+//     for (z = 0; z < nz; z++, raw += sz - (ptrdiff_t)ny * sy) {
+//       for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
+//         for (x = 0; x < nx; x++, raw += sx) {
+//           block[64 * w + 16 * z + 4 * y + x] = *raw;
+//         }
+//         //* Pad x dimension if the number of elements gathered is less than 4.
+//         pad_partial_block(block + 64 * w + 16 * z + 4 * y, nx, 1);
+//       }
+//       for (x = 0; x < 4; x++)
+//         pad_partial_block(block + 64 * w + 16 * z + x, ny, 4);
+//     }
+//     for (y = 0; y < 4; y++)
+//       for (x = 0; x < 4; x++)
+//         pad_partial_block(block + 64 * w + 4 * y + x, nz, 16);
+//   }
+//   for (z = 0; z < 4; z++)
+//     for (y = 0; y < 4; y++)
+//       for (x = 0; x < 4; x++)
+//         pad_partial_block(block + 16 * z + 4 * y + x, nw, 64);
+// }
 
 int get_scaler_exponent(float x)
 {
@@ -139,7 +139,7 @@ int get_scaler_exponent(float x)
   return e;
 }
 
-int get_block_exponent(const float *block, uint n)
+int get_block_exponent(const float block[BLOCK_SIZE_2D], uint n)
 {
   float max = 0;
   //* Find the maximum floating point and return its exponent as the block exponent.
@@ -175,7 +175,8 @@ float quantize_scaler(float x, int e)
  * @param emax Exponent of the block.
  * @return void
 */
-void fwd_cast_block(int32 *iblock, const float *fblock, uint n, int emax)
+void fwd_cast_block(int32 iblock[BLOCK_SIZE_2D], const float *fblock, uint n,
+                    int emax)
 {
   //* Compute power-of-two scale factor for all floats in the block
   //* relative to emax of the block.
@@ -186,7 +187,7 @@ void fwd_cast_block(int32 *iblock, const float *fblock, uint n, int emax)
   } while (--n);
 }
 
-void fwd_lift_vector(int32 *p, ptrdiff_t s)
+void fwd_lift_vector(int32 p[BLOCK_SIZE_4D], ptrdiff_t s)
 {
   //* Gather 4-vector [x y z w] from p.
   int32 x, y, z, w;
@@ -248,7 +249,7 @@ void fwd_lift_vector(int32 *p, ptrdiff_t s)
   */
 }
 
-void fwd_decorrelate_2d_block(int32 *iblock)
+void fwd_decorrelate_2d_block(int32 iblock[BLOCK_SIZE_2D])
 {
   uint x, y;
   /* transform along x */
@@ -266,7 +267,7 @@ uint32 twocomplement_to_negabinary(int32 x)
 }
 
 /* Reorder signed coefficients and convert to unsigned integer */
-void fwd_reorder_int2uint(uint32* ublock, const int32* iblock,
+void fwd_reorder_int2uint(uint32 ublock[BLOCK_SIZE_2D], const int32* iblock,
                           const uchar* perm, uint n)
 {
   do
@@ -275,13 +276,12 @@ void fwd_reorder_int2uint(uint32* ublock, const int32* iblock,
 }
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
-//! The `const` pointers should be `restrict` pointers in C, using `const` for now.
-uint encode_partial_bitplanes(stream *const out_data,
-                              const uint32 *const ublock,
+uint encode_partial_bitplanes(stream &s, const uint32 *const ublock,
                               uint maxbits, uint maxprec, uint block_size)
 {
   /* Make a copy of bit stream to avoid aliasing */
-  stream s = *out_data;
+  //! CHANGE: No copy is made here!
+  // stream s(out_data);
   uint intprec = (uint)(CHAR_BIT * sizeof(int32));
   //* `kmin` is the cutoff of the least significant bit plane to encode.
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
@@ -304,7 +304,7 @@ uint encode_partial_bitplanes(stream *const out_data,
     m = MIN(n, bits);
     bits -= m;
     //* (The first n bits "are encoded verbatim.")
-    x = stream_write_bits(&s, x, m);
+    x = stream_write_bits(s, x, m);
 
     //^ Step 3: Bitplane embedded (unary run-length) encode remainder of bit plane.
     //* Shift `x` right by 1 bit and increment `n` until `x` becomes 0.
@@ -314,14 +314,14 @@ uint encode_partial_bitplanes(stream *const out_data,
       //* Group test: If `x` is not 0, then write a 1 bit.
       //& `!!` is used to convert a value to its corresponding boolean value, e.g., !!5 == true.
       //& `stream_write_bit()` returns the bit (1/0) that was written.
-      if (stream_write_bit(&s, !!x)) {
+      if (stream_write_bit(s, !!x)) {
         //^ Positive group test (x != 0) -> Scan for one-bit.
         for (; bits && n < block_size - 1; x >>= 1, n++) {
           //* `n` is incremented for every encoded bit and accumulated across all bitplanes.
           bits--;
           //* Continue writing 0's until a 1 bit is found.
           //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
-          if (stream_write_bit(&s, x & 1u))
+          if (stream_write_bit(s, x & 1u))
             //* After writing a 1 bit, break out for another group test
             //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
             break;
@@ -333,19 +333,19 @@ uint encode_partial_bitplanes(stream *const out_data,
     }
   }
 
-  *out_data = s;
+  // out_data = s;
   //* Returns the number of bits written (constrained by `maxbits`).
   return maxbits - bits;
 }
 
 /* Compress <= 64 (1-3D) unsigned integers without rate contraint */
-//! The `const` pointers should be `restrict` pointers in C, using `const` for now.
-uint encode_all_bitplanes(stream *const out_data, const uint32 *const ublock,
+uint encode_all_bitplanes(stream &s, const uint32 const ublock[BLOCK_SIZE_2D],
                           uint maxprec, uint block_size)
 {
   /* make a copy of bit stream to avoid aliasing */
-  stream s = *out_data;
-  uint64 offset = stream_woffset(&s);
+  //! CHANGE: No copy is made here!
+  // stream s = *out_data;
+  uint64 offset = stream_woffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
   uint i, k, n;
@@ -357,35 +357,39 @@ uint encode_all_bitplanes(stream *const out_data, const uint32 *const ublock,
     for (i = 0; i < block_size; i++)
       x += (uint64)((ublock[i] >> k) & 1u) << i;
     //^ Step 2: encode first n bits of bit plane.
-    x = stream_write_bits(&s, x, n);
+    x = stream_write_bits(s, x, n);
     //^ Step 3: unary run-length encode remainder of bit plane.
-    for (; n < block_size && stream_write_bit(&s, !!x); x >>= 1, n++)
-      for (; n < block_size - 1 && !stream_write_bit(&s, x & 1u); x >>= 1, n++)
+    for (; n < block_size && stream_write_bit(s, !!x); x >>= 1, n++)
+      for (; n < block_size - 1 && !stream_write_bit(s, x & 1u); x >>= 1, n++)
         ;
   }
 
-  *out_data = s;
+  // *out_data = s;
   //* Returns the number of bits written.
-  return (uint)(stream_woffset(&s) - offset);
+  return (uint)(stream_woffset(s) - offset);
 }
 
 
-//! The `const` pointers should be `restrict` pointers in C, using `const` for now.
-uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
-                   uint maxprec, int32 *iblock, size_t dim)
+uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
+                   uint maxprec, int32 iblock[BLOCK_SIZE_2D], size_t dim)
 {
-  size_t block_size = BLOCK_SIZE(dim);
-  uint32 ublock[block_size];
+  // size_t block_size = BLOCK_SIZE(dim);
+  // uint32 ublock[block_size];
 
-  //* Perform forward decorrelation transform.
-  switch (dim) {
-    case 2:
-      fwd_decorrelate_2d_block(iblock);
-      break;
-    //TODO: Implement other dimensions.
-    default:
-      break;
-  }
+  // //* Perform forward decorrelation transform.
+  // switch (dim) {
+  //   case 2:
+  //     fwd_decorrelate_2d_block(iblock);
+  //     break;
+  //   //TODO: Implement other dimensions.
+  //   default:
+  //     break;
+  // }
+
+  //TODO: Implement other dimensions.
+  uint block_size = BLOCK_SIZE_2D;
+  uint32 ublock[block_size];
+  fwd_decorrelate_2d_block(iblock);
   //* Reorder signed coefficients and convert to unsigned integer
   fwd_reorder_int2uint(ublock, iblock, PERM_2D, block_size);
 
@@ -416,40 +420,40 @@ uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
   return encoded_bits;
 }
 
-uint encode_fblock(zfp_output* output, const float *fblock, size_t dim)
+uint encode_fblock(zfp_output &output, const float fblock[BLOCK_SIZE_2D],
+                   size_t dim)
 {
   uint bits = 1;
-  uint block_size = BLOCK_SIZE(dim);
   //* Compute maximum exponent.
-  int emax = get_block_exponent(fblock, block_size);
-  uint maxprec = get_precision(emax, output->maxprec, output->minexp, 2);
+  int emax = get_block_exponent(fblock, BLOCK_SIZE_2D);
+  uint maxprec = get_precision(emax, output.maxprec, output.minexp, 2);
   //* IEEE 754 exponent bias.
   uint e = maxprec ? (uint)(emax + EBIAS) : 0;
 
   /* encode block only if biased exponent is nonzero */
   if (e) {
-    int32 iblock[block_size];
+    int32 iblock[BLOCK_SIZE_2D];
     /* encode common exponent (emax); LSB indicates that exponent is nonzero */
     bits += EBITS;
-    stream_write_bits(output->data, 2 * e + 1, bits);
+    stream_write_bits(output.data, 2 * e + 1, bits);
     /* perform forward block-floating-point transform */
-    fwd_cast_block(iblock, fblock, block_size, emax);
+    fwd_cast_block(iblock, fblock, BLOCK_SIZE_2D, emax);
     /* encode integer block */
     bits += encode_iblock(
-              output->data,
+              output.data,
               //* Deduct the exponent bits, which are already encoded.
-              output->minbits - MIN(bits, output->minbits),
-              output->maxbits - bits,
+              output.minbits - MIN(bits, output.minbits),
+              output.maxbits - bits,
               maxprec,
               iblock,
               dim);
   } else {
     /* write single zero-bit to indicate that all values are zero */
     //* Compress a block of all zeros and add padding if it's fixed-rate.
-    stream_write_bit(output->data, 0);
-    if (output->minbits > bits) {
-      stream_pad(output->data, output->minbits - bits);
-      bits = output->minbits;
+    stream_write_bit(output.data, 0);
+    if (output.minbits > bits) {
+      stream_pad(output.data, output.minbits - bits);
+      bits = output.minbits;
     }
   }
   //* Return the number of encoded bits.

@@ -1,6 +1,7 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
+#include <ap_int.h>
 #include <stdarg.h>
 
 #include "common.hpp"
@@ -20,10 +21,43 @@ typedef uint32_t uint32;
 typedef int64_t int64;
 typedef uint64_t uint64;
 
+// typedef struct stream stream;
 /* Use the maximum word size by default for IO highest speed (irrespective of the input data type since it's just a stream of bits) */
-typedef uint64 stream_word;
+typedef ap_uint<512> stream_word;
 /* Maximum number of bits in a buffered stream word */
 #define SWORD_BITS ((size_t)(sizeof(stream_word) * CHAR_BIT))
+
+struct stream {
+  size_t buffered_bits; /* number of buffered bits (0 <= buffered_bits < SWORD_BITS) */
+  stream_word buffer;   /* incoming/outgoing bits (buffer < 2^buffered_bits) */
+  stream_word *begin;   /* beginning of stream */
+  ptrdiff_t ptr;     /* pointer to next stream_word to be read/written */
+  ptrdiff_t end;     /* end of stream (not enforced) */
+
+  stream(void)
+    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), ptr(0), end(0)
+  {}
+
+  stream(stream_word *output_data, size_t bytes)
+    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), ptr(0), end(0)
+  {
+    this->begin = output_data;
+    this->end = bytes / sizeof(stream_word);
+    this->ptr = 0;
+    this->buffer = stream_word(0);
+    this->buffered_bits = 0;
+  }
+
+  stream(const stream &s)
+  {
+    buffered_bits = s.buffered_bits;
+    buffer = s.buffer;
+    ptr = s.ptr;
+    begin = s.begin;
+    end = s.end;
+  }
+};
+typedef struct stream stream;
 
 /* ZFP Compression mode */
 typedef enum {
@@ -50,17 +84,20 @@ typedef enum {
 */
 struct zfp_input {
   data_type dtype;          /* data type of the scale values */
+  const float *data;              /* pointer to the input data */
   size_t nx, ny, nz, nw;    /* size of the array in the x/y/z/w dimension */
   ptrdiff_t sx, sy, sz, sw; /* stride of the array in the x/y/z/w dimension */
 
-  zfp_input (void) : 
-  dtype(dtype_none), nx(0), ny(0), nz(0), nw(0), sx(0), sy(0), sz(0), sw(0) 
+  zfp_input(void)
+    : dtype(dtype_none), data(nullptr), nx(0), ny(0), nz(0), nw(0), sx(0), sy(0),
+      sz(0), sw(0)
   {}
 
-  zfp_input (data_type dtype, std::vector<size_t> &shape) : 
-  dtype(dtype), nx(0), ny(0), nz(0), nw(0), sx(0), sy(0), sz(0), sw(0) 
+  zfp_input(data_type dtype, size_t shape[DIM_MAX], const uint dim)
+    : dtype(dtype), data(nullptr), nx(0), ny(0), nz(0), nw(0), sx(0), sy(0), sz(0),
+      sw(0)
   {
-    for (int i = 0; i < shape.size(); i++) {
+    for (int i = 0; i < dim; i++) {
       switch (i) {
         case 0:
           this->nx = shape[i];
@@ -85,10 +122,12 @@ struct zfp_output {
   uint maxbits;       /* maximum number of bits to store per block */
   uint maxprec;       /* maximum number of bit planes to store */
   int minexp;         /* minimum floating point bit plane number to store */
-  // stream* data;       /* compressed bit stream */
+  stream &data;       /* compressed bit stream */
   // zfp_execution exec; /* execution policy and parameters */
 
-  zfp_output (void) : minbits(ZFP_MIN_BITS), maxbits(ZFP_MAX_BITS), maxprec(ZFP_MAX_PREC), minexp(ZFP_MIN_EXP) 
+  zfp_output(stream &data)
+    : minbits(ZFP_MIN_BITS), maxbits(ZFP_MAX_BITS), maxprec(ZFP_MAX_PREC),
+      minexp(ZFP_MIN_EXP), data(data)
   {}
 };
 typedef struct zfp_output zfp_output;
