@@ -1,11 +1,13 @@
 #include <chrono>
 #include <cassert>
+#include <fstream>
+#include <iostream>
 
 #include "host.hpp"
 #include "types.hpp"
-// #include "stream.hpp"
-// #include "gcow.hpp"
-// #include "common.hpp"
+
+
+void get_input_2d(float *input_data, size_t n);
 
 int main(int argc, char** argv)
 {
@@ -34,9 +36,7 @@ int main(int argc, char** argv)
   std::cout << "input dim:\t" << in_dim << std::endl;
 
   std::vector<float, aligned_allocator<float>> in_fp_gradients(input_size);
-  for (int i = 0; i < input_size; i++) {
-    in_fp_gradients[i] = (float)(i + 0.555);
-  }
+  get_input_2d(in_fp_gradients.data(), 100);
   std::cout << "input floats:\t" << in_fp_gradients.size() << std::endl;
 
   //* Initialize output.
@@ -64,7 +64,7 @@ int main(int argc, char** argv)
   //* Import XCLBIN
   xclbin_file_name = argv[1];
   cl::Program::Binaries gcow_bins = import_binary_file();
-  std::cout << "Finish importing binary\n\n";
+  std::cout << "Finished importing binary\n\n";
 
   //* Program and Kernel
   devices.resize(1);
@@ -99,15 +99,15 @@ int main(int argc, char** argv)
               out_zfp_gradients.data(),
               &err));
 
-  size_t out_bytes;
+  size_t out_bytes[] = {0};
   OCL_CHECK(err,
             cl::Buffer buffer_out_bytes(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
               sizeof(size_t),
-              &out_bytes,
+              out_bytes,
               &err));
 
-  std::cout << "Finish allocating buffers\n";
+  std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
   int arg_counter = 0;
@@ -141,6 +141,7 @@ int main(int argc, char** argv)
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
     buffer_out_gradients,
+    buffer_out_bytes,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
 
@@ -152,18 +153,38 @@ int main(int argc, char** argv)
             << std::endl;
   std::cout << "Overall grad values per second = " << input_size / duration
             << std::endl;
+  std::cout << "Compressed size: " << *out_bytes << " bytes" << std::endl;
 
   //* Validate against software implementation.
+  std::ofstream gcow_outf("tests/data/compressed.gcow",
+                          std::ios::out | std::ios::binary);
+  //* Dump the compressed data to file.
+  if (gcow_outf.is_open()) {
+    gcow_outf.write(reinterpret_cast<const char*>(out_zfp_gradients.data()),
+                    *out_bytes);
+    gcow_outf.close();
+  } else {
+    std::cout << "Unable to open binary dump file" << std::endl;
+  }
 
-  bool match = true;
+  bool matched =
+    !system("diff --brief -w tests/data/compressed.gcow tests/data/compressed_2d_100.zfp");
 
-  std::cout << "Compressed size: " << out_bytes << " bytes" << std::endl;
-  // size_t num_words = max_output_bytes / sizeof(stream_word);
-  // std::cout << "Number of words: " << num_words << std::endl;
-  // for (int i = 0; i < num_words; i++) {
-  //   std::cout << out_zfp_gradients[i] << " ";
-  // }
+  std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
+  return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
+}
 
-  std::cout << "TEST " << (match ? "PASSED" : "FAILED") << std::endl;
-  return (match ? EXIT_SUCCESS : EXIT_FAILURE);
+
+void get_input_2d(float *input_data, size_t n)
+{
+  size_t nx = n;
+  size_t ny = n;
+  /* initialize array to be compressed */
+  size_t i, j;
+  for (j = 0; j < ny; j++)
+    for (i = 0; i < nx; i++) {
+      double x = 2.0 * i / nx;
+      double y = 2.0 * j / ny;
+      input_data[i + nx * j] = (float)exp(-(x * x + y * y));
+    }
 }

@@ -63,7 +63,7 @@ uint64 stream_write_bits(stream &s, uint64 value, size_t n)
   //* The `value` is shifted left by the number of buffered bits.
   //* For example, if the buffer is 0b0101 and the value is 0b11, then the buffer becomes 0b110101.
   //! Casting before shifting.
-  ap_uint<512> val = stream_word(value);
+  stream_word val = stream_word(value);
   s.buffer += val << s.buffered_bits;
   /* assert: 0 <= s.buffered_bits < wsize (the number of bits written in the buffer) */
   s.buffered_bits += n;
@@ -96,7 +96,7 @@ uint stream_write_bit(stream &s, uint bit)
 {
   s.buffer += stream_word(bit) << s.buffered_bits;
   if (++s.buffered_bits == SWORD_BITS) {
-    //* Write 512 bits at a time.
+    //* Write 256 bits at a time.
     stream_write_word(s, s.buffer);
     s.buffer = 0;
     s.buffered_bits = 0;

@@ -78,10 +78,10 @@ uint get_input_precision(const zfp_input &input)
 size_t get_max_output_bytes(const zfp_output &output, const zfp_input &input)
 {
   int reversible = is_reversible(output);
-  printf("Reversible: %d\n", reversible);
+  printf("Reversible:\t%d\n", reversible);
   uint dim = get_input_dimension(input);
   size_t num_blocks = get_input_num_blocks(input);
-  printf("Total 4^d blocks: %ld\n", num_blocks);
+  printf("Total 4^d blocks:\t%ld\n", num_blocks);
   uint values = (1u << (2 * dim));
   uint maxbits = 0;
 

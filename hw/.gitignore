@@ -29,3 +29,4 @@ _x.*
 ext_metadata.json
 .run/
 **/*.orig
+tests/data/*large.zfp
