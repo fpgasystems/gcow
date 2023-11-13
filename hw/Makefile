@@ -1,7 +1,7 @@
 SHELL := bash
 
 #* Primary build targets
-.PHONY: xclbin exe all help clean cleanall run
+.PHONY: xclbin exe all run help clean cleanall format
 
 # e.g., 
 # time make all TARGET=hw PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1 > out 2>&1
@@ -102,3 +102,6 @@ clean:
 cleanall: clean
 	-$(RM) -rf _x.* .Xil .run
 	-$(RM) -rf $(XCLBIN_DIR)
+
+format:
+	astyle --style=linux --indent=spaces=2 -S --max-code-length=80 src/*.cpp include/*.hpp

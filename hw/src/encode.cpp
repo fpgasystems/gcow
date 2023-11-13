@@ -62,7 +62,9 @@ void pad_partial_block(float block[BLOCK_SIZE_4D], size_t n, ptrdiff_t s)
 void gather_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
+LOOP_GATHER_2D_BLOCK:
   for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
+LOOP_GATHER_2D_BLOCK_INNER:
     for (size_t x = 0; x < 4; x++, raw += sx) {
       *block++ = *raw;
       // printf("Gathering value: %f\n", *raw);
@@ -74,7 +76,9 @@ void gather_partial_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
   size_t x, y;
+LOOP_GATHER_PARTIAL_2D_BLOCK:
   for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
+LOOP_GATHER_PARTIAL_2D_BLOCK_INNER:
     for (x = 0; x < nx; x++, raw += sx) {
       block[4 * y + x] = *raw;
       // printf("Gathering value: %f\n", *raw);

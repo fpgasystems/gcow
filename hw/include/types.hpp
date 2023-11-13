@@ -30,15 +30,15 @@ typedef ap_uint<512> stream_word;
 struct stream {
   size_t buffered_bits; /* number of buffered bits (0 <= buffered_bits < SWORD_BITS) */
   stream_word buffer;   /* incoming/outgoing bits (buffer < 2^buffered_bits) */
-  stream_word *begin;   /* beginning of stream */
-  ptrdiff_t ptr;     /* pointer to next stream_word to be read/written */
-  ptrdiff_t end;     /* end of stream (not enforced) */
+  volatile stream_word *begin;   /* pointer to the beginning of the output data */
+  ptrdiff_t ptr;     /* pointer offset to next stream_word to be read/written */
+  ptrdiff_t end;     /* offset to the end of stream (not enforced) */
 
   stream(void)
     : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), ptr(0), end(0)
   {}
 
-  stream(stream_word *output_data, size_t bytes)
+  stream(volatile stream_word *output_data, size_t bytes)
     : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), ptr(0), end(0)
   {
     this->begin = output_data;
@@ -122,10 +122,10 @@ struct zfp_output {
   uint maxbits;       /* maximum number of bits to store per block */
   uint maxprec;       /* maximum number of bit planes to store */
   int minexp;         /* minimum floating point bit plane number to store */
-  stream &data;       /* compressed bit stream */
+  stream data;       /* compressed bit stream */
   // zfp_execution exec; /* execution policy and parameters */
 
-  zfp_output(stream &data)
+  zfp_output(stream data)
     : minbits(ZFP_MIN_BITS), maxbits(ZFP_MAX_BITS), maxprec(ZFP_MAX_PREC),
       minexp(ZFP_MIN_EXP), data(data)
   {}

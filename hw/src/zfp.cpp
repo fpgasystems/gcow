@@ -37,9 +37,11 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   ptrdiff_t sy = input.sy ? input.sy : (ptrdiff_t)nx;
 
   //* Compress array one block of 4x4 values at a time
+LOOP_ENCODE_BLOCKS_2D:
   for (size_t y = 0; y < ny; y += 4) {
-    // printf("Encoding block [%ld, *]\n", y);
+LOOP_ENCODE_BLOCKS_2D_INNER:
     for (size_t x = 0; x < nx; x += 4) {
+      //TODO: Use hls stream for reading blocks.
       const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       float fblock[BLOCK_SIZE_2D];
 
