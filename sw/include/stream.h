@@ -6,9 +6,9 @@
 struct stream {
   size_t buffered_bits; /* number of buffered bits (0 <= buffered_bits < SWORD_BITS) */
   stream_word buffer;   /* incoming/outgoing bits (buffer < 2^buffered_bits) */
-  stream_word *ptr;     /* pointer to next stream_word to be read/written */
   stream_word *begin;   /* beginning of stream */
-  stream_word *end;     /* end of stream (not enforced) */
+  ptrdiff_t idx;     /* Index to next stream_word to be read/written */
+  ptrdiff_t end;     /* end of stream (not enforced) */
 // #ifdef BIT_STREAM_STRIDED
 //   size_t mask;           /* one less the block size in number of words */
 //   ptrdiff_t delta;       /* number of words between consecutive blocks */

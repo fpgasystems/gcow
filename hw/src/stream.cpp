@@ -5,7 +5,7 @@
 /* Read a single word from memory */
 stream_word stream_read_word(stream &s)
 {
-  stream_word w = s.begin[s.ptr++];
+  stream_word w = s.begin[s.idx++];
 // #ifdef BIT_STREAM_STRIDED
 //   if (!((s.ptr - s.begin) & s.mask))
 //     s.ptr += s.delta;
@@ -16,7 +16,7 @@ stream_word stream_read_word(stream &s)
 /* Write a single word to memory */
 void stream_write_word(stream &s, stream_word value)
 {
-  s.begin[s.ptr++] = value;
+  s.begin[s.idx++] = value;
 // #ifdef BIT_STREAM_STRIDED
 //   if (!((s.ptr - s.begin) & s.mask))
 //     s.ptr += s.delta;
@@ -127,13 +127,13 @@ size_t stream_flush(stream &s)
 /* Return bit offset to next bit to be written */
 uint64 stream_woffset(stream &s)
 {
-  return s.ptr * SWORD_BITS + s.buffered_bits;
+  return s.idx * SWORD_BITS + s.buffered_bits;
 }
 
 /* Position stream for reading or writing at beginning */
 void stream_rewind(stream &s)
 {
-  s.ptr = 0;
+  s.idx = 0;
   s.buffer = stream_word(0);
   s.buffered_bits = 0;
 }
@@ -156,5 +156,5 @@ size_t stream_capacity_bytes(const stream &s)
 
 size_t stream_size_bytes(const stream &s)
 {
-  return (size_t)(s.ptr) * sizeof(stream_word);
+  return (size_t)(s.idx) * sizeof(stream_word);
 }

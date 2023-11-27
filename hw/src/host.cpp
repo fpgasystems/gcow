@@ -18,8 +18,9 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
+  size_t dim = 8;
   size_t in_dim = 2;
-  size_t shape[DIM_MAX] = {100, 100};
+  size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);
   assert(in_dim == get_input_dimension(in_specs));
   std::vector<size_t, aligned_allocator<size_t>> in_shape(shape, shape + in_dim);
@@ -36,7 +37,7 @@ int main(int argc, char** argv)
   std::cout << "input dim:\t" << in_dim << std::endl;
 
   std::vector<float, aligned_allocator<float>> in_fp_gradients(input_size);
-  get_input_2d(in_fp_gradients.data(), 100);
+  get_input_2d(in_fp_gradients.data(), dim);
   std::cout << "input floats:\t" << in_fp_gradients.size() << std::endl;
 
   //* Initialize output.

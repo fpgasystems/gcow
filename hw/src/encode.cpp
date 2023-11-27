@@ -38,7 +38,7 @@
  *      4 5 6 4
  *      1 2 3 1
 */
-void pad_partial_block(float block[BLOCK_SIZE_4D], size_t n, ptrdiff_t s)
+void pad_partial_block(volatile float block[BLOCK_SIZE_2D], size_t n, ptrdiff_t s)
 {
   switch (n) {
     case 0:
@@ -59,7 +59,7 @@ void pad_partial_block(float block[BLOCK_SIZE_4D], size_t n, ptrdiff_t s)
   }
 }
 
-void gather_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
+void gather_2d_block(volatile float block[BLOCK_SIZE_2D], volatile const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
 LOOP_GATHER_2D_BLOCK:
@@ -67,11 +67,10 @@ LOOP_GATHER_2D_BLOCK:
 LOOP_GATHER_2D_BLOCK_INNER:
     for (size_t x = 0; x < 4; x++, raw += sx) {
       *block++ = *raw;
-      // printf("Gathering value: %f\n", *raw);
     }
 }
 
-void gather_partial_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
+void gather_partial_2d_block(volatile float block[BLOCK_SIZE_2D], volatile const float *raw,
                              size_t nx, size_t ny,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
@@ -81,7 +80,6 @@ LOOP_GATHER_PARTIAL_2D_BLOCK:
 LOOP_GATHER_PARTIAL_2D_BLOCK_INNER:
     for (x = 0; x < nx; x++, raw += sx) {
       block[4 * y + x] = *raw;
-      // printf("Gathering value: %f\n", *raw);
     }
     //* Pad horizontally to 4.
     pad_partial_block(block + 4 * y, nx, 1);
@@ -143,7 +141,7 @@ int get_scaler_exponent(float x)
   return e;
 }
 
-int get_block_exponent(const float block[BLOCK_SIZE_2D], uint n)
+int get_block_exponent(volatile const float block[BLOCK_SIZE_2D], uint n)
 {
   float max = 0;
   //* Find the maximum floating point and return its exponent as the block exponent.
@@ -179,7 +177,7 @@ float quantize_scaler(float x, int e)
  * @param emax Exponent of the block.
  * @return void
 */
-void fwd_cast_block(int32 iblock[BLOCK_SIZE_2D], const float *fblock, uint n,
+void fwd_cast_block(volatile int32 iblock[BLOCK_SIZE_2D], volatile const float *fblock, uint n,
                     int emax)
 {
   //* Compute power-of-two scale factor for all floats in the block
@@ -191,7 +189,7 @@ void fwd_cast_block(int32 iblock[BLOCK_SIZE_2D], const float *fblock, uint n,
   } while (--n);
 }
 
-void fwd_lift_vector(int32 p[BLOCK_SIZE_4D], ptrdiff_t s)
+void fwd_lift_vector(volatile int32 p[BLOCK_SIZE_4D], ptrdiff_t s)
 {
   //* Gather 4-vector [x y z w] from p.
   int32 x, y, z, w;
@@ -253,13 +251,15 @@ void fwd_lift_vector(int32 p[BLOCK_SIZE_4D], ptrdiff_t s)
   */
 }
 
-void fwd_decorrelate_2d_block(int32 iblock[BLOCK_SIZE_2D])
+void fwd_decorrelate_2d_block(volatile int32 iblock[BLOCK_SIZE_2D])
 {
   uint x, y;
   /* transform along x */
+  LOOP_FWD_DECORRELATE_2D_BLOCK_X:
   for (y = 0; y < 4; y++)
     fwd_lift_vector(iblock + 4 * y, 1);
   /* transform along y */
+  LOOP_FWD_DECORRELATE_2D_BLOCK_Y:
   for (x = 0; x < 4; x++)
     fwd_lift_vector(iblock + 1 * x, 4);
 }
@@ -271,7 +271,7 @@ uint32 twocomplement_to_negabinary(int32 x)
 }
 
 /* Reorder signed coefficients and convert to unsigned integer */
-void fwd_reorder_int2uint(uint32 ublock[BLOCK_SIZE_2D], const int32* iblock,
+void fwd_reorder_int2uint(volatile uint32 ublock[BLOCK_SIZE_2D], volatile const int32* iblock,
                           const uchar* perm, uint n)
 {
   do
@@ -280,7 +280,7 @@ void fwd_reorder_int2uint(uint32 ublock[BLOCK_SIZE_2D], const int32* iblock,
 }
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
-uint encode_partial_bitplanes(stream &s, const uint32 *const ublock,
+uint encode_partial_bitplanes(stream &s, volatile const uint32 *const ublock,
                               uint maxbits, uint maxprec, uint block_size)
 {
   /* Make a copy of bit stream to avoid aliasing */
@@ -294,9 +294,11 @@ uint encode_partial_bitplanes(stream &s, const uint32 *const ublock,
   uint64 x;
 
   //* Encode one bit plane at a time from MSB to LSB
+  LOOP_ENCODE_PARTIAL_BITPLANES:
   for (k = intprec, n = 0; bits && k-- > kmin;) {
     //^ Step 1: Extract bit plane #k to x
     x = 0;
+  LOOP_ENCODE_PARTIAL_BITPLANES_TRANSPOSE:
     for (i = 0; i < block_size; i++)
       //* Below puts the `k`th bit of `data[i]` into the `i`th bit of `x`.
       //* I.e., transposing into the bit plane format.
@@ -312,6 +314,7 @@ uint encode_partial_bitplanes(stream &s, const uint32 *const ublock,
 
     //^ Step 3: Bitplane embedded (unary run-length) encode remainder of bit plane.
     //* Shift `x` right by 1 bit and increment `n` until `x` becomes 0.
+  LOOP_ENCODE_PARTIAL_BITPLANES_EMBED:
     for (; bits && n < block_size; x >>= 1, n++) {
       //* The number of bits in `x` still to be encoded.
       bits--;
@@ -343,7 +346,7 @@ uint encode_partial_bitplanes(stream &s, const uint32 *const ublock,
 }
 
 /* Compress <= 64 (1-3D) unsigned integers without rate contraint */
-uint encode_all_bitplanes(stream &s, const uint32 const ublock[BLOCK_SIZE_2D],
+uint encode_all_bitplanes(stream &s, volatile const uint32 const ublock[BLOCK_SIZE_2D],
                           uint maxprec, uint block_size)
 {
   /* make a copy of bit stream to avoid aliasing */
@@ -355,14 +358,17 @@ uint encode_all_bitplanes(stream &s, const uint32 const ublock[BLOCK_SIZE_2D],
   uint i, k, n;
 
   /* encode one bit plane at a time from MSB to LSB */
+  LOOP_ENCODE_ALL_BITPLANES:
   for (k = intprec, n = 0; k-- > kmin;) {
     //^ Step 1: extract bit plane #k to x.
     uint64 x = 0;
+  LOOP_ENCODE_ALL_BITPLANES_TRANSPOSE:
     for (i = 0; i < block_size; i++)
       x += (uint64)((ublock[i] >> k) & 1u) << i;
     //^ Step 2: encode first n bits of bit plane.
     x = stream_write_bits(s, x, n);
     //^ Step 3: unary run-length encode remainder of bit plane.
+  LOOP_ENCODE_ALL_BITPLANES_EMBED:
     for (; n < block_size && stream_write_bit(s, !!x); x >>= 1, n++)
       for (; n < block_size - 1 && !stream_write_bit(s, x & 1u); x >>= 1, n++)
         ;
@@ -375,7 +381,7 @@ uint encode_all_bitplanes(stream &s, const uint32 const ublock[BLOCK_SIZE_2D],
 
 
 uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
-                   uint maxprec, int32 iblock[BLOCK_SIZE_2D], size_t dim)
+                   uint maxprec, volatile int32 iblock[BLOCK_SIZE_2D], size_t dim)
 {
   // size_t block_size = BLOCK_SIZE(dim);
   // uint32 ublock[block_size];
@@ -424,7 +430,7 @@ uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
   return encoded_bits;
 }
 
-uint encode_fblock(zfp_output &output, const float fblock[BLOCK_SIZE_2D],
+uint encode_fblock(zfp_output &output, volatile const float fblock[BLOCK_SIZE_2D],
                    size_t dim)
 {
   uint bits = 1;

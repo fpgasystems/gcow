@@ -44,12 +44,12 @@ int get_scaler_exponent(float x);
  * @param n Number of elements in the block.
  * @return Maximum floating-point exponent.
 */
-int get_block_exponent(const float block[BLOCK_SIZE_2D], uint n);
+int get_block_exponent(volatile const float block[BLOCK_SIZE_2D], uint n);
 
-void gather_2d_block(float block[BLOCK_SIZE_2D], const float *raw, ptrdiff_t sx,
+void gather_2d_block(volatile float block[BLOCK_SIZE_2D], volatile const float *raw, ptrdiff_t sx,
                      ptrdiff_t sy);
 
-void gather_partial_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
+void gather_partial_2d_block(volatile float block[BLOCK_SIZE_2D], volatile const float *raw,
                              size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy);
 
 /**
@@ -63,8 +63,8 @@ void gather_partial_2d_block(float block[BLOCK_SIZE_2D], const float *raw,
 uint get_precision(int maxexp, uint maxprec, int minexp, int dim);
 
 
-uint encode_fblock(zfp_output &output, const float fblock[BLOCK_SIZE_2D],
+uint encode_fblock(zfp_output &output, volatile const float fblock[BLOCK_SIZE_2D],
                    size_t dim);
 uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
-                   uint maxprec, int32 iblock[BLOCK_SIZE_2D], size_t dim);
+                   uint maxprec, volatile int32 iblock[BLOCK_SIZE_2D], size_t dim);
 #endif // ENCODE_HPP

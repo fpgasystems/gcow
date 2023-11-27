@@ -30,19 +30,19 @@ struct stream {
   size_t buffered_bits; /* number of buffered bits (0 <= buffered_bits < SWORD_BITS) */
   stream_word buffer;   /* incoming/outgoing bits (buffer < 2^buffered_bits) */
   volatile stream_word *begin;   /* pointer to the beginning of the output data */
-  ptrdiff_t ptr;     /* pointer offset to next stream_word to be read/written */
+  ptrdiff_t idx;     /* offset to next stream_word to be read/written */
   ptrdiff_t end;     /* offset to the end of stream (not enforced) */
 
   stream(void)
-    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), ptr(0), end(0)
+    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), idx(0), end(0)
   {}
 
   stream(volatile stream_word *output_data, size_t bytes)
-    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), ptr(0), end(0)
+    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), idx(0), end(0)
   {
     this->begin = output_data;
     this->end = bytes / sizeof(stream_word);
-    this->ptr = 0;
+    this->idx = 0;
     this->buffer = stream_word(0);
     this->buffered_bits = 0;
   }
@@ -51,7 +51,7 @@ struct stream {
   {
     buffered_bits = s.buffered_bits;
     buffer = s.buffer;
-    ptr = s.ptr;
+    idx = s.idx;
     begin = s.begin;
     end = s.end;
   }
