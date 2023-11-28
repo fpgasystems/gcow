@@ -157,19 +157,31 @@ int main(int argc, char** argv)
   std::cout << "Compressed size: " << *out_bytes << " bytes" << std::endl;
 
   //* Validate against software implementation.
-  std::ofstream gcow_outf("tests/data/compressed.gcow",
-                          std::ios::out | std::ios::binary);
+  std::stringstream zfpf;
+  if (dim > 1e4)
+    zfpf << "tests/data/compressed_2d_" << dim << "_large.zfp";
+  else
+    zfpf << "tests/data/compressed_2d_" << dim << ".zfp";
+
+  std::stringstream gcowf;
+  if (dim > 1e4)
+    gcowf << "tests/data/compressed_2d_" << dim << "_large.gcow";
+  else
+    gcowf << "tests/data/compressed_2d_" << dim << ".gcow";
+
   //* Dump the compressed data to file.
-  if (gcow_outf.is_open()) {
-    gcow_outf.write(reinterpret_cast<const char*>(out_zfp_gradients.data()),
-                    *out_bytes);
-    gcow_outf.close();
+  FILE *fp = fopen(gcowf.str().c_str(), "wb");
+  if (!fp) {
+    printf("Failed to open file for writing.\n");
+    exit(1);
   } else {
-    std::cout << "Unable to open binary dump file" << std::endl;
+    fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
+    fclose(fp);
   }
 
-  bool matched =
-    !system("diff --brief -w tests/data/compressed.gcow tests/data/compressed_2d_100.zfp");
+  std::stringstream diffcmd;
+  diffcmd << "diff --brief -w " << gcowf.str() << " " << zfpf.str();
+  bool matched = !system(diffcmd.str().c_str());
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
   return (matched ? EXIT_SUCCESS : EXIT_FAILURE);

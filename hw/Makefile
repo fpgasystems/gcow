@@ -1,7 +1,7 @@
 SHELL := bash
 
 #* Primary build targets
-.PHONY: xclbin exe all run help clean cleanall format
+.PHONY: xclbin host all run help clean cleanall format
 
 # e.g., 
 # time make all TARGET=hw PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1 > out 2>&1
@@ -65,9 +65,9 @@ NUMDEVICES := 1
 
 xclbin: $(XCLBIN)
 
-exe: $(HOST_EXE)
+host: $(HOST_EXE)
 
-all: exe xclbin $(EMCONFIG_FILE)
+all: host xclbin $(EMCONFIG_FILE)
 
 #*  Compile kernels into Xilinx object file.
 $(XOS): $(KERNEL_SRC)

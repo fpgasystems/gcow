@@ -64,10 +64,10 @@ $(EXE_TEST_ZFP): $(OBJ_FILES) $(TEST_ZFP_OBJS)
 # test: $(EXECUTABLE)
 # 	./$(BUILD_DIR)/$(EXECUTABLE)
 
-encoder_test: $(EXE_TEST_ENCODER)
+encoder_test: clean $(EXE_TEST_ENCODER)
 	./$(BUILD_DIR)/$(EXE_TEST_ENCODER)
 
-zfp_test: $(EXE_TEST_ZFP)
+zfp_test: clean $(EXE_TEST_ZFP)
 	./$(BUILD_DIR)/$(EXE_TEST_ZFP)
 
 #* Clean build files

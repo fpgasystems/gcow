@@ -30,7 +30,7 @@ size_t zfp_compress(zfp_output &output, const zfp_input &input)
 void zfp_compress_2d(zfp_output &output, const zfp_input &input)
 {
   uint dim = 2;
-  const float* data = input.data;
+  volatile const float* data = input.data;
   size_t nx = input.nx;
   size_t ny = input.ny;
   ptrdiff_t sx = input.sx ? input.sx : 1;
@@ -42,7 +42,7 @@ LOOP_ENCODE_BLOCKS_2D:
 LOOP_ENCODE_BLOCKS_2D_INNER:
     for (size_t x = 0; x < nx; x += 4) {
       //TODO: Use hls stream for reading blocks.
-      const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
+      volatile const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       float fblock[BLOCK_SIZE_2D];
 
       if (nx - x < 4 || ny - y < 4) {

@@ -22,7 +22,7 @@ typedef int64_t int64;
 typedef uint64_t uint64;
 
 /* Use the maximum word size by default for IO highest speed (irrespective of the input data type since it's just a stream of bits) */
-typedef ap_uint<256> stream_word;
+typedef uint64 stream_word;
 /* Maximum number of bits in a buffered stream word */
 #define SWORD_BITS ((size_t)(sizeof(stream_word) * CHAR_BIT))
 
@@ -83,7 +83,7 @@ typedef enum {
 */
 struct zfp_input {
   data_type dtype;          /* data type of the scale values */
-  const float *data;              /* pointer to the input data */
+  volatile const float *data;              /* pointer to the input data */
   size_t nx, ny, nz, nw;    /* size of the array in the x/y/z/w dimension */
   ptrdiff_t sx, sy, sz, sw; /* stride of the array in the x/y/z/w dimension */
 
