@@ -384,25 +384,20 @@ LOOP_ENCODE_ALL_BITPLANES_EMBED:
 uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
                    uint maxprec, volatile int32 *iblock, size_t dim)
 {
-  // size_t block_size = BLOCK_SIZE(dim);
-  // uint32 ublock[block_size];
-
-  // //* Perform forward decorrelation transform.
-  // switch (dim) {
-  //   case 2:
-  //     fwd_decorrelate_2d_block(iblock);
-  //     break;
-  //   //TODO: Implement other dimensions.
-  //   default:
-  //     break;
-  // }
-
-  //TODO: Implement other dimensions.
-  uint block_size = BLOCK_SIZE_2D;
+  size_t block_size = BLOCK_SIZE(dim);
   uint32 ublock[block_size];
-  fwd_decorrelate_2d_block(iblock);
-  //* Reorder signed coefficients and convert to unsigned integer
-  fwd_reorder_int2uint(ublock, iblock, PERM_2D, block_size);
+
+  switch (dim) {
+    case 2:
+      //* Perform forward decorrelation transform.
+      fwd_decorrelate_2d_block(iblock);
+      //* Reorder signed coefficients and convert to unsigned integer
+      fwd_reorder_int2uint(ublock, iblock, PERM_2D, block_size);
+      break;
+    //TODO: Implement other dimensions.
+    default:
+      break;
+  }
 
   uint encoded_bits = 0;
   //* Bitplane coding with the fastest implementation.
@@ -435,20 +430,24 @@ uint encode_fblock(zfp_output &output, volatile const float *fblock,
                    size_t dim)
 {
   uint bits = 1;
+  size_t block_size = BLOCK_SIZE(dim);
+
+  /* block floating point transform */
   //* Compute maximum exponent.
-  int emax = get_block_exponent(fblock, BLOCK_SIZE_2D);
+  int emax = get_block_exponent(fblock, block_size);
   uint maxprec = get_precision(emax, output.maxprec, output.minexp, 2);
   //* IEEE 754 exponent bias.
   uint e = maxprec ? (uint)(emax + EBIAS) : 0;
 
   /* encode block only if biased exponent is nonzero */
+  //& Initialize block outside to circumvent LLVM stacksave intrinsic.
+  int32 iblock[block_size];
   if (e) {
-    int32 iblock[BLOCK_SIZE_2D];
     /* encode common exponent (emax); LSB indicates that exponent is nonzero */
     bits += EBITS;
     stream_write_bits(output.data, 2 * e + 1, bits);
     /* perform forward block-floating-point transform */
-    fwd_cast_block(iblock, fblock, BLOCK_SIZE_2D, emax);
+    fwd_cast_block(iblock, fblock, block_size, emax);
     /* encode integer block */
     bits += encode_iblock(
               output.data,
