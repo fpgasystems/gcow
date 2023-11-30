@@ -41,8 +41,7 @@ int main(int argc, char** argv)
   std::cout << "input floats:\t" << in_fp_gradients.size() << std::endl;
 
   //* Initialize output.
-  stream tmp = stream();
-  zfp_output out_specs(tmp);
+  zfp_output out_specs;
   size_t max_output_bytes = get_max_output_bytes(out_specs, in_specs);
   std::cout << "Max output bytes:\t" << max_output_bytes << std::endl;
 

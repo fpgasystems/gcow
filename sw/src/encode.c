@@ -276,12 +276,12 @@ void fwd_reorder_int2uint(uint32* ublock, const int32* iblock,
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
 //! The `const` pointers should be `restrict` pointers in C, using `const` for now.
-uint encode_partial_bitplanes(stream *const out_data,
+uint encode_partial_bitplanes(stream *const s,
                               const uint32 *const ublock,
                               uint maxbits, uint maxprec, uint block_size)
 {
   /* Make a copy of bit stream to avoid aliasing */
-  stream s = *out_data;
+  // stream s = *out_data;
   uint intprec = (uint)(CHAR_BIT * sizeof(int32));
   //* `kmin` is the cutoff of the least significant bit plane to encode.
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
@@ -304,7 +304,7 @@ uint encode_partial_bitplanes(stream *const out_data,
     m = MIN(n, bits);
     bits -= m;
     //* (The first n bits "are encoded verbatim.")
-    x = stream_write_bits(&s, x, m);
+    x = stream_write_bits(s, x, m);
 
     //^ Step 3: Bitplane embedded (unary run-length) encode remainder of bit plane.
     //* Shift `x` right by 1 bit and increment `n` until `x` becomes 0.
@@ -314,14 +314,14 @@ uint encode_partial_bitplanes(stream *const out_data,
       //* Group test: If `x` is not 0, then write a 1 bit.
       //& `!!` is used to convert a value to its corresponding boolean value, e.g., !!5 == true.
       //& `stream_write_bit()` returns the bit (1/0) that was written.
-      if (stream_write_bit(&s, !!x)) {
+      if (stream_write_bit(s, !!x)) {
         //^ Positive group test (x != 0) -> Scan for one-bit.
         for (; bits && n < block_size - 1; x >>= 1, n++) {
           //* `n` is incremented for every encoded bit and accumulated across all bitplanes.
           bits--;
           //* Continue writing 0's until a 1 bit is found.
           //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
-          if (stream_write_bit(&s, x & 1u))
+          if (stream_write_bit(s, x & 1u))
             //* After writing a 1 bit, break out for another group test
             //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
             break;
@@ -333,19 +333,19 @@ uint encode_partial_bitplanes(stream *const out_data,
     }
   }
 
-  *out_data = s;
+  // *out_data = s;
   //* Returns the number of bits written (constrained by `maxbits`).
   return maxbits - bits;
 }
 
 /* Compress <= 64 (1-3D) unsigned integers without rate contraint */
 //! The `const` pointers should be `restrict` pointers in C, using `const` for now.
-uint encode_all_bitplanes(stream *const out_data, const uint32 *const ublock,
+uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
                           uint maxprec, uint block_size)
 {
   /* make a copy of bit stream to avoid aliasing */
-  stream s = *out_data;
-  uint64 offset = stream_woffset(&s);
+  // stream s = *out_data;
+  uint64 offset = stream_woffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
   uint i, k, n;
@@ -357,16 +357,16 @@ uint encode_all_bitplanes(stream *const out_data, const uint32 *const ublock,
     for (i = 0; i < block_size; i++)
       x += (uint64)((ublock[i] >> k) & 1u) << i;
     //^ Step 2: encode first n bits of bit plane.
-    x = stream_write_bits(&s, x, n);
+    x = stream_write_bits(s, x, n);
     //^ Step 3: unary run-length encode remainder of bit plane.
-    for (; n < block_size && stream_write_bit(&s, !!x); x >>= 1, n++)
-      for (; n < block_size - 1 && !stream_write_bit(&s, x & 1u); x >>= 1, n++)
+    for (; n < block_size && stream_write_bit(s, !!x); x >>= 1, n++)
+      for (; n < block_size - 1 && !stream_write_bit(s, x & 1u); x >>= 1, n++)
         ;
   }
 
-  *out_data = s;
+  // *out_data = s;
   //* Returns the number of bits written.
-  return (uint)(stream_woffset(&s) - offset);
+  return (uint)(stream_woffset(s) - offset);
 }
 
 

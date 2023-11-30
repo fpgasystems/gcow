@@ -55,6 +55,16 @@ struct stream {
     begin = s.begin;
     end = s.end;
   }
+
+  stream &operator=(const stream &s)
+  {
+    buffered_bits = s.buffered_bits;
+    buffer = s.buffer;
+    idx = s.idx;
+    begin = s.begin;
+    end = s.end;
+    return *this;
+  }
 };
 typedef struct stream stream;
 
@@ -124,9 +134,9 @@ struct zfp_output {
   stream data;       /* compressed bit stream */
   // zfp_execution exec; /* execution policy and parameters */
 
-  zfp_output(stream data)
+  zfp_output()
     : minbits(ZFP_MIN_BITS), maxbits(ZFP_MAX_BITS), maxprec(ZFP_MAX_PREC),
-      minexp(ZFP_MIN_EXP), data(data)
+      minexp(ZFP_MIN_EXP), data(stream())
   {}
 };
 typedef struct zfp_output zfp_output;

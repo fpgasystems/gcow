@@ -34,8 +34,7 @@ LOOP_READ_SHAPE:
   input.data = in_fp_gradients;
 
   //* Initialize output.
-  stream tmp = stream();
-  zfp_output output(tmp);
+  zfp_output output;
   double tolerance = 1e-3;
   double max_error = set_zfp_output_accuracy(output, tolerance);
   size_t max_output_bytes = get_max_output_bytes(output, input);
