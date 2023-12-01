@@ -128,6 +128,12 @@ uint64 stream_woffset(stream* s)
   return (s->idx) * SWORD_BITS + s->buffered_bits;
 }
 
+/* Return bit offset to next bit to be read */
+uint64 stream_roffset(stream* s)
+{
+  return (s->idx) * SWORD_BITS - s->buffered_bits;
+}
+
 /* Position stream for reading or writing at beginning */
 void stream_rewind(stream *s)
 {
@@ -155,4 +161,37 @@ size_t stream_capacity_bytes(const stream *s)
 size_t stream_size_bytes(const stream *s)
 {
   return (size_t)(s->idx) * sizeof(stream_word);
+}
+
+/* Position stream for reading at given bit offset */
+void stream_rseek(stream* s, uint64 offset)
+{
+  //* Compute the number of bits into the next word the stream should be positioned.
+  size_t n = (size_t)(offset % SWORD_BITS);
+  s->idx = (size_t)(offset / SWORD_BITS);
+  if (n) {
+    //* The stream needs to be positioned within the word.
+    //* Buffer the remaining bits for subsequent read operations
+    s->buffer = stream_read_word(s) >> n;
+    s->buffered_bits = SWORD_BITS - n;
+  } else {
+    //* The desired offset is at the beginning of a word boundary.
+    s->buffer = 0;
+    s->buffered_bits = 0;
+  }
+}
+
+/* Skip over the next n bits (n >= 0) */
+void stream_skip(stream *s, uint64 n)
+{
+  stream_rseek(s, stream_roffset(s) + n);
+}
+
+/* Align stream on next word boundary */
+size_t stream_algin_next_word(stream *s)
+{
+  size_t  bits = s->buffered_bits;
+  if (bits)
+    stream_skip(s, bits);
+  return bits;
 }

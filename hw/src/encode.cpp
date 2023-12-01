@@ -266,7 +266,7 @@ LOOP_FWD_DECORRELATE_2D_BLOCK_Y:
 }
 
 /* Map two's complement signed integer to negabinary unsigned integer */
-uint32 twocomplement_to_negabinary(int32 x)
+uint32 twoscomplement_to_negabinary(int32 x)
 {
   return ((uint32)x + NBMASK) ^ NBMASK;
 }
@@ -276,7 +276,7 @@ void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32* iblock,
                           const uchar* perm, uint n)
 {
   do
-    *ublock++ = twocomplement_to_negabinary(iblock[*perm++]);
+    *ublock++ = twoscomplement_to_negabinary(iblock[*perm++]);
   while (--n);
 }
 
@@ -435,7 +435,7 @@ uint encode_fblock(zfp_output &output, volatile const float *fblock,
   /* block floating point transform */
   //* Compute maximum exponent.
   int emax = get_block_exponent(fblock, block_size);
-  uint maxprec = get_precision(emax, output.maxprec, output.minexp, 2);
+  uint maxprec = get_precision(emax, output.maxprec, output.minexp, dim);
   //* IEEE 754 exponent bias.
   uint e = maxprec ? (uint)(emax + EBIAS) : 0;
 

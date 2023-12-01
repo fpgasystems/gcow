@@ -26,5 +26,9 @@ void stream_rewind(stream *s);
 size_t stream_size_bytes(const stream *s);
 stream *stream_init(void* buffer, size_t bytes);
 size_t stream_flush(stream *s);
+uint64 stream_roffset(stream* s);
+void stream_rseek(stream* s, uint64 offset);
+void stream_skip(stream *s, uint64 n);
+size_t stream_algin_next_word(stream *s);
 
 #endif /* STREAM_H */
