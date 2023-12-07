@@ -16,6 +16,7 @@ int main(int argc, char** argv)
     return EXIT_FAILURE;
   }
   cl_int err;
+  std::cout << std::endl << "--------------------------" << std::endl;
 
   //* Initialize input.
   size_t dim = 8;

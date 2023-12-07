@@ -38,6 +38,11 @@
 */
 int get_scaler_exponent(float x);
 
+void fwd_cast_block(volatile int32 *iblock, volatile const float *fblock,
+                    uint n, int emax);
+
+void fwd_decorrelate_2d_block(volatile int32 *iblock);
+
 /**
  * @brief Compute maximum floating-point exponent in block of n values.
  * @param block Pointer to the block.

@@ -46,6 +46,10 @@ int get_scaler_exponent(float x);
 */
 int get_block_exponent(const float *block, uint n);
 
+void fwd_cast_block(int32 *iblock, const float *fblock, uint n, int emax);
+
+void fwd_decorrelate_2d_block(int32 *iblock);
+
 void gather_2d_block(float *block, const float *raw, ptrdiff_t sx,
                      ptrdiff_t sy);
 

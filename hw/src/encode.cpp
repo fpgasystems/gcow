@@ -178,8 +178,7 @@ float quantize_scaler(float x, int e)
  * @return void
 */
 void fwd_cast_block(volatile int32 *iblock, volatile const float *fblock,
-                    uint n,
-                    int emax)
+                    uint n, int emax)
 {
   //* Compute power-of-two scale factor for all floats in the block
   //* relative to emax of the block.

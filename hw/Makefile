@@ -49,12 +49,16 @@ KERNEL_SRC := $(filter-out $(SRC_DIR)/host.cpp,$(KERNEL_SRC))
 HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
 TEST_ZFP_SRC := $(TEST_DIR)/test_zfp.cpp $(SRC_DIR)/common.cpp
 TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC)
+TEST_CAST_SRC := $(TEST_DIR)/test_cast.cpp $(KERNEL_SRC)
+TEST_DECORRELATE_SRC := $(TEST_DIR)/test_decorrelate.cpp $(KERNEL_SRC)
 	
 #* Targets
 KERNEL := gcow
 HOST_EXE := $(KERNEL)_host
 TEST_ZFP_EXE := zfp_test
 TEST_EMAX_EXE := emax_test
+TEST_CAST_EXE := cast_test
+TEST_DECORRELATE_EXE := decorrelate_test
 
 XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
@@ -93,6 +97,16 @@ $(TEST_EMAX_EXE): $(TEST_EMAX_SRC)
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Test Executable: $(TEST_EMAX_EXE)"
 
+$(TEST_CAST_EXE): $(TEST_CAST_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_CAST_EXE)"
+
+$(TEST_DECORRELATE_EXE): $(TEST_DECORRELATE_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_DECORRELATE_EXE)"
+
 $(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
@@ -104,6 +118,14 @@ $(EMCONFIG_FILE):
 run_emax_test: $(XCLBIN) $(TEST_EMAX_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=emax`
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_EMAX_EXE) $(XCLBIN)
+
+run_cast_test: $(XCLBIN) $(TEST_CAST_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=cast`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_CAST_EXE) $(XCLBIN)
+
+run_decorrelate_test: $(XCLBIN) $(TEST_DECORRELATE_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=decorrelate`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_DECORRELATE_EXE) $(XCLBIN)
 
 run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)

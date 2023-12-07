@@ -16,13 +16,16 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  std::vector<float, aligned_allocator<float>> block(BLOCK_SIZE_2D);
+  std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D);
 
   for (int y = 0; y < 4; y++)
     for (int x = 0; x < 4; x++)
-      block.at(x + 4 * y) = (float)(x + 100 * y + 3.1415926);
+      fblock.at(x + 4 * y) = (float)(x + 100 * y + 3.1415926);
 
-  std::cout << "input floats:\t" << block.size() << std::endl;
+  std::cout << "input floats:\t" << fblock.size() << std::endl;
+
+  //* Initialize output.
+  std::vector<int32, aligned_allocator<int32>> iblock(BLOCK_SIZE_2D);
 
   /* OPENCL HOST CODE AREA START */
   std::cout << std::endl << "--------------------------" << std::endl;
@@ -44,7 +47,7 @@ int main(int argc, char** argv)
   devices.resize(1);
   cl::Program program(context, devices, gcow_bins);
   std::cout << "\nCreated program from the bitstream\n";
-  cl::Kernel kernel(program, "emax");
+  cl::Kernel kernel(program, "cast");
   std::cout << "Created a kernel using the loaded program object\n";
 
   // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr
@@ -55,36 +58,38 @@ int main(int argc, char** argv)
 
   //* Allocate buffers in Global Memory
   OCL_CHECK(err,
-            cl::Buffer buffer_in_block(
+            cl::Buffer buffer_fblock(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
               BLOCK_SIZE_2D*sizeof(float),
-              block.data(),
+              fblock.data(),
               &err));
 
-  size_t emax[] = {0};
   OCL_CHECK(err,
-            cl::Buffer buffer_emax(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-              sizeof(size_t),
-              emax,
+            cl::Buffer buffer_iblock(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              BLOCK_SIZE_2D*sizeof(int32),
+              iblock.data(),
               &err));
 
   std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
+  int emax = 9;
   int arg_counter = 0;
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_in_block));
+            err = kernel.setArg(arg_counter++, buffer_fblock));
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, BLOCK_SIZE_2D));
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_emax));
+            err = kernel.setArg(arg_counter++, emax));
+  OCL_CHECK(err,
+            err = kernel.setArg(arg_counter++, buffer_iblock));
 
   //* Copy input data to device global memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
     //* Input data objects
-    buffer_in_block,
+    buffer_fblock,
   }, 0 /* 0: from host to device */));
 
   //* Launch the Kernel
@@ -97,7 +102,7 @@ int main(int argc, char** argv)
   //* Copy Result from Device Global Memory to Host Local Memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
-    buffer_emax,
+    buffer_iblock,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
 
@@ -109,10 +114,23 @@ int main(int argc, char** argv)
             << std::endl;
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
-  std::cout << "emax: " << *emax << std::endl;
+
+  int32 expected[16] = {
+    6588397, 8685549, 10782701, 12879853,
+    216303600, 218400752, 220497904, 222595056,
+    426018784, 428115936, 430213088, 432310240,
+    635734016, 637831168, 639928320, 642025472
+  };
 
   //* Validate against software implementation.
-  bool matched = *emax == 9;
+  bool matched = true;
+  for (int i = 0; i < 16; i++) {
+    if (iblock.at(i) != expected[i]) {
+      std::cout << "iblock[" << i << "] = " << iblock.at(i)
+                << " != " << expected[i] << std::endl;
+      matched = false;
+    }
+  }
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
   return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
