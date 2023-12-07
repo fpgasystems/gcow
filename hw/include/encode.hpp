@@ -43,6 +43,9 @@ void fwd_cast_block(volatile int32 *iblock, volatile const float *fblock,
 
 void fwd_decorrelate_2d_block(volatile int32 *iblock);
 
+void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32* iblock,
+                          const uchar* perm, uint n);
+
 /**
  * @brief Compute maximum floating-point exponent in block of n values.
  * @param block Pointer to the block.

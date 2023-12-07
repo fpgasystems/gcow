@@ -74,6 +74,26 @@ TEST(stages, fwd_decorrelate)
   }
 }
 
+TEST(stages, reorder)
+{
+  int32 iblock[BLOCK_SIZE_2D] = {
+    324306927, -2097152, 0, 0, -209715205,
+    0, 0, 0, -7, 0, 0, 0, 8, 0, 0, 0
+  };
+
+  uint32 ublock[BLOCK_SIZE_2D];
+
+  fwd_reorder_int2uint(ublock, iblock, PERM_2D, BLOCK_SIZE_2D);
+
+  uint32 expected[BLOCK_SIZE_2D] = {
+    391485491, 2097152, 880803855, 0, 0, 9, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0
+  };
+
+  for (int i = 0; i < BLOCK_SIZE_2D; i++) {
+    EXPECT_EQ(ublock[i], expected[i]);
+  }
+}
+
 int main(int argc, char** argv)
 {
   printf("\nStages Tests: \n");

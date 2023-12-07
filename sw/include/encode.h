@@ -50,6 +50,9 @@ void fwd_cast_block(int32 *iblock, const float *fblock, uint n, int emax);
 
 void fwd_decorrelate_2d_block(int32 *iblock);
 
+void fwd_reorder_int2uint(uint32* ublock, const int32* iblock,
+                          const uchar* perm, uint n);
+
 void gather_2d_block(float *block, const float *raw, ptrdiff_t sx,
                      ptrdiff_t sy);
 

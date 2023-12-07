@@ -271,7 +271,7 @@ uint32 twoscomplement_to_negabinary(int32 x)
 }
 
 /* Reorder signed coefficients and convert to unsigned integer */
-void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32* iblock,
+void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32 *iblock,
                           const uchar* perm, uint n)
 {
   do

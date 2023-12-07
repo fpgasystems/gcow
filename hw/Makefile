@@ -51,6 +51,7 @@ TEST_ZFP_SRC := $(TEST_DIR)/test_zfp.cpp $(SRC_DIR)/common.cpp
 TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC)
 TEST_CAST_SRC := $(TEST_DIR)/test_cast.cpp $(KERNEL_SRC)
 TEST_DECORRELATE_SRC := $(TEST_DIR)/test_decorrelate.cpp $(KERNEL_SRC)
+TEST_REORDER_SRC := $(TEST_DIR)/test_reorder.cpp $(KERNEL_SRC)
 	
 #* Targets
 KERNEL := gcow
@@ -59,6 +60,7 @@ TEST_ZFP_EXE := zfp_test
 TEST_EMAX_EXE := emax_test
 TEST_CAST_EXE := cast_test
 TEST_DECORRELATE_EXE := decorrelate_test
+TEST_REORDER_EXE := reorder_test
 
 XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
@@ -107,6 +109,11 @@ $(TEST_DECORRELATE_EXE): $(TEST_DECORRELATE_SRC)
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Test Executable: $(TEST_DECORRELATE_EXE)"
 
+$(TEST_REORDER_EXE): $(TEST_REORDER_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_REORDER_EXE)"
+
 $(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
@@ -126,6 +133,10 @@ run_cast_test: $(XCLBIN) $(TEST_CAST_EXE) $(EMCONFIG_FILE)
 run_decorrelate_test: $(XCLBIN) $(TEST_DECORRELATE_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=decorrelate`
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_DECORRELATE_EXE) $(XCLBIN)
+
+run_reorder_test: $(XCLBIN) $(TEST_REORDER_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=reorder`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_REORDER_EXE) $(XCLBIN)
 
 run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)
