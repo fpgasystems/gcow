@@ -110,10 +110,10 @@ void bwd_decorrelate_2d_block(int32 *iblock)
     bwd_lift_vector(iblock + 4 * y, 1);
 }
 
-uint decode_full_bitplanes(stream *s, int32 *const ublock,
+uint decode_full_bitplanes(stream *s, uint32 *const ublock,
                            uint maxprec, uint block_size)
 {
-  size_t offset = stream_roffset(&s);
+  size_t offset = stream_roffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
   uint i, k, n;
@@ -125,17 +125,17 @@ uint decode_full_bitplanes(stream *s, int32 *const ublock,
   /* decode one bit plane at a time from MSB to LSB */
   for (k = intprec, n = 0; k-- > kmin;) {
     /* step 1: decode first n bits of bit plane #k */
-    uint64 x = stream_read_bits(&s, n);
+    uint64 x = stream_read_bits(s, n);
     /* step 2: unary run-length decode remainder of bit plane */
-    for (; n < block_size && stream_read_bit(&s); x += (uint64)1 << n, n++)
-      for (; n < block_size - 1 && !stream_read_bit(&s); n++)
+    for (; n < block_size && stream_read_bit(s); x += (uint64)1 << n, n++)
+      for (; n < block_size - 1 && !stream_read_bit(s); n++)
         ;
     /* step 3: deposit bit plane from x */
     for (i = 0; x; i++, x >>= 1)
       ublock[i] += (int32)(x & 1u) << k;
   }
 
-  return (uint)(stream_roffset(&s) - offset);
+  return (uint)(stream_roffset(s) - offset);
 }
 
 uint decode_partial_bitplanes(stream *const s, uint32 *const ublock,
@@ -156,15 +156,15 @@ uint decode_partial_bitplanes(stream *const s, uint32 *const ublock,
     /* step 1: decode first n bits of bit plane #k */
     m = MIN(n, bits);
     bits -= m;
-    x = stream_read_bits(&s, m);
+    x = stream_read_bits(s, m);
     /* step 2: unary run-length decode remainder of bit plane */
     for (; bits && n < block_size; n++, m = n) {
       bits--;
-      if (stream_read_bit(&s)) {
+      if (stream_read_bit(s)) {
         /* positive group test; scan for next one-bit */
         for (; bits && n < block_size - 1; n++) {
           bits--;
-          if (stream_read_bit(&s))
+          if (stream_read_bit(s))
             break;
         }
         /* set bit and continue decoding bit plane */
@@ -220,7 +220,7 @@ uint decode_fblock(zfp_output* output, float* fblock, size_t dim)
 {
   uint bits = 1;
   size_t block_size = BLOCK_SIZE(dim);
-  uint32 iblock[block_size];
+  int32 iblock[block_size];
   /* test if block has nonzero values */
   if (stream_read_bit(output->data)) {
     uint maxprec;
@@ -228,7 +228,7 @@ uint decode_fblock(zfp_output* output, float* fblock, size_t dim)
     /* decode common exponent */
     bits += EBITS;
     emax = (int)stream_read_bits(output->data, EBITS) - EBIAS;
-    maxprec = precision(emax, output->maxprec, output->minexp, dim);
+    maxprec = get_precision(emax, output->maxprec, output->minexp, dim);
     /* decode integer block */
     bits += decode_iblock(
               output->data,

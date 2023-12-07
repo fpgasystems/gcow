@@ -3,12 +3,11 @@
 ## Hardware
 
 ```bash
-make all TARGET=hw_emu/hw PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1
-./run_hwemu.sh
+make all TARGET=<hw_emu|hw> PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1
 ```
 
 ## Software
 
 ```bash
-make clean && make <zfp_test|encoder_test>
+make clean && make <run_zfp_test|run_encoder_test|...>
 ``` 

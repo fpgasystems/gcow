@@ -1,4 +1,5 @@
 *_host
+*_test
 src/hls_output
 hls_output
 *csv

@@ -80,7 +80,7 @@ void zfp_decompress_2d(zfp_output *output, const zfp_input *input)
 {
   uint dim = 2;
   size_t block_size = BLOCK_SIZE(dim);
-  const float* data = (const float*)input->data;
+  float* data = (float*)input->data;
   size_t nx = input->nx;
   size_t ny = input->ny;
   ptrdiff_t sx = input->sx ? input->sx : 1;
@@ -89,7 +89,7 @@ void zfp_decompress_2d(zfp_output *output, const zfp_input *input)
   //* Decompress array one block of 4x4 values at a time
   for (size_t y = 0; y < ny; y += 4) {
     for (size_t x = 0; x < nx; x += 4) {
-      const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
+      float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       float fblock[block_size];
 
       decode_fblock(output, fblock, dim);

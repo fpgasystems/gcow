@@ -1,0 +1,6 @@
+/usr/include
+${workspaceFolder}/include
+/local/home/honghe/xrt_2022.1/opt/xilinx/xrt/include
+/tools/Xilinx/Vitis_HLS/2022.1/include
+/tools/Xilinx/Vitis/2022.1/include
+/local/home/honghe/xrt_2022.1/opt/xilinx/xrt/include

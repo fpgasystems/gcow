@@ -7,9 +7,9 @@
 
 // extern "C" {
 //  // * Avoid name mangling for C functions.
-#include "common.hpp"
 #include "encode.h"
-#include "types.h"
+#include "stream.h"
+// #include "common.hpp"
 // }
 
 
@@ -264,13 +264,13 @@ TEST(encode, test_2d)
       data[y * specs.nx + x] = (float)(y * specs.nx + x + 1);
 
   printf("Raw values:\n");
-  print_2d<float>(data, specs.nx, specs.ny);
+  // print_2d<float>(data, specs.nx, specs.ny);
 
   //* Test test_2d
   test_2d(compressed, &specs);
 
   printf("Encoded values:\n");
-  print_2d<uint32>(compressed, encoded_x, encoded_y, 3);
+  // print_2d<uint32>(compressed, encoded_x, encoded_y, 3);
 
   EXPECT_EQ(sizeof(compressed), sizeof(uint32) * num_outputs);
   //TODO: Block-wise checks.

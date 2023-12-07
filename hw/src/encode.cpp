@@ -347,7 +347,7 @@ LOOP_ENCODE_PARTIAL_BITPLANES_EMBED:
 }
 
 /* Compress <= 64 (1-3D) unsigned integers without rate contraint */
-uint encode_all_bitplanes(stream &s, volatile const uint32 const *ublock,
+uint encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
                           uint maxprec, uint block_size)
 {
   /* make a copy of bit stream to avoid aliasing */

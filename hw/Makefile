@@ -1,23 +1,23 @@
 SHELL := bash
 
 #* Primary build targets
-.PHONY: xclbin host all run help clean cleanall format
+.PHONY: xclbin host zfp_test run_zfp_test run_emax_test all run help clean cleanall format
 
 # e.g., 
 # time make all TARGET=hw PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1 > out 2>&1
 
 help:
 	@echo "Makefile Usage:"
-	@echo '  make all TARGET=<sw_emu/hw_emu/hw> PLATFORM=<FPGA platform>'
+	@echo '  make all TARGET=<sw_emu|hw_emu|hw> PLATFORM=<FPGA platform>'
 	@echo "      Command to generate the design for specified Target and Device."
 	@echo ""
-	@echo "  make xclbin TARGET=<sw_emu/hw_emu/hw> PLATFORM=<FPGA platform>"
+	@echo "  make xclbin TARGET=<sw_emu|hw_emu|hw> PLATFORM=<FPGA platform>"
 	@echo "      Command compile just the kernel of the design for specified Target and Device."
 	@echo ""
-	@echo "  make exe TARGET=<sw_emu/hw_emu/hw> PLATFORM=<FPGA platform>"
+	@echo "  make exe TARGET=<sw_emu|hw_emu|hw> PLATFORM=<FPGA platform>"
 	@echo "      Command to generate the host application for specified Target and Device."
 	@echo ""
-	@echo "  make run TARGET=<sw_emu/hw_emu/hw> PLATFORM=<FPGA platform>"
+	@echo "  make run TARGET=<sw_emu|hw_emu|hw> PLATFORM=<FPGA platform>"
 	@echo "      Command compile just the kernel of the design for specified Target and Device."
 	@echo ""
 	@echo "  make clean "
@@ -34,34 +34,36 @@ TARGET := hw_emu
 PLATFORM := xilinx_u250_gen3x16_xdma_4_1_202210_1
 
 #* Directories
-SRC_DIR = src
-INCLUDE_DIR = include
+SRC_DIR := src
+INCLUDE_DIR := include
 XILINX_VITIS_HLS := /tools/Xilinx/Vitis_HLS/2022.1
 XCLBIN_DIR := ./xclbin
 TEMP_DIR := ./_x.$(TARGET)
+TEST_DIR := ./tests
 
 #* Sources
-KERNEL_SRC = $(wildcard $(SRC_DIR)/*.cpp)
+KERNEL_SRC = $(wildcard $(SRC_DIR)/*.cpp stages/*.cpp)
 #* (Use immediate expansion `:=` to avoid re-evaluation of `wildcard`.)
 KERNEL_SRC := $(filter-out $(SRC_DIR)/host.cpp,$(KERNEL_SRC))
 
 HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
+TEST_ZFP_SRC := $(TEST_DIR)/test_zfp.cpp $(SRC_DIR)/common.cpp
+TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC)
 	
 #* Targets
-KERNEL = gcow
+KERNEL := gcow
 HOST_EXE := $(KERNEL)_host
+TEST_ZFP_EXE := zfp_test
+TEST_EMAX_EXE := emax_test
 
-XOS := $(XCLBIN_DIR)/gcow.$(TARGET).xo
-XCLBIN := $(XCLBIN_DIR)/gcow.$(TARGET).xclbin
+XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
+XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
 EMCONFIG_FILE := ./emconfig.json
 
-VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --save-temps --config connectivity.cfg
+VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --config configs/$(KERNEL)_config.cfg --save-temps 
 CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(XILINX_VITIS_HLS)/include -I$(INCLUDE_DIR)
 LFLAGS := -L$(XILINX_XRT)/lib -lxilinxopencl -pthread -lrt
 NUMDEVICES := 1
-
-# run time args
-# EXE_OPT := gcow.$(TARGET).xclbin
 
 xclbin: $(XCLBIN)
 
@@ -86,8 +88,25 @@ $(HOST_EXE): $(HOST_SRC)
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Host Executable: $(HOST_EXE)"
 
+$(TEST_EMAX_EXE): $(TEST_EMAX_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_EMAX_EXE)"
+
+$(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_ZFP_EXE)"
+
 $(EMCONFIG_FILE):
 	$(EMCONFIGUTIL) --nd $(NUMDEVICES) --od . --platform $(PLATFORM)
+
+run_emax_test: $(XCLBIN) $(TEST_EMAX_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=emax`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_EMAX_EXE) $(XCLBIN)
+
+run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)
 
 run: $(XCLBIN) $(HOST_EXE) $(EMCONFIG_FILE)
 ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
@@ -104,4 +123,4 @@ cleanall: clean
 	-$(RM) -rf $(XCLBIN_DIR)
 
 format:
-	astyle --style=linux --indent=spaces=2 -S --max-code-length=80 src/*.cpp include/*.hpp
+	astyle --style=linux --indent=spaces=2 -S --max-code-length=80 src/*.cpp include/*.hpp stages/*.cpp tests/*.cpp

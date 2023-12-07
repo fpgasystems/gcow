@@ -4,7 +4,7 @@
 #include <iostream>
 #include <iomanip>
 
-#include "types.h"
+// #include "types.h"
 
 template <typename T>
 void print_2d(const T *p, size_t nx, size_t ny, int width=5)

@@ -26,7 +26,7 @@ void stream_write_word(stream* s, stream_word value)
 }
 
 /* read 0 <= n <= 64 bits */
-inline uint64 stream_read_bits(stream* s, size_t n)
+uint64 stream_read_bits(stream* s, size_t n)
 {
   uint64 value = s->buffer;
   if (s->buffered_bits < n) {
@@ -88,6 +88,20 @@ uint64 stream_write_bits(stream* s, uint64 value, size_t n)
   s->buffer &= ((stream_word)1 << s->buffered_bits) - 1;
   /* assert: 0 <= n < 64 */
   return value >> n;
+}
+
+/* Read a single bit */
+uint stream_read_bit(stream *s)
+{
+  uint bit;
+  if (!s->buffered_bits) {
+    s->buffer = stream_read_word(s);
+    s->buffered_bits = SWORD_BITS;
+  }
+  s->buffered_bits--;
+  bit = (uint)s->buffer & 1u;
+  s->buffer >>= 1;
+  return bit;
 }
 
 /* Write single bit (must be 0 or 1) */

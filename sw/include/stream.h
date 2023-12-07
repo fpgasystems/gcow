@@ -20,6 +20,7 @@ stream_word stream_read_word(stream *s);
 void stream_write_word(stream *s, stream_word value);
 uint64 stream_read_bits(stream *s, size_t n);
 uint64 stream_write_bits(stream *s, uint64 value, size_t n);
+uint stream_read_bit(stream *s);
 uint stream_write_bit(stream *s, uint bit);
 uint64 stream_woffset(stream *s);
 void stream_rewind(stream *s);
