@@ -71,9 +71,12 @@ void gather_partial_2d_block(volatile float *block, volatile const float *raw,
 */
 uint get_precision(int maxexp, uint maxprec, int minexp, int dim);
 
+uint encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
+                          uint maxprec, uint block_size);
 
 uint encode_fblock(zfp_output &output, volatile const float *fblock,
                    size_t dim);
-uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
+
+uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
                    uint maxprec, volatile int32 *iblock, size_t dim);
 #endif // ENCODE_HPP

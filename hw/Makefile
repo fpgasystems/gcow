@@ -52,7 +52,10 @@ TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC)
 TEST_CAST_SRC := $(TEST_DIR)/test_cast.cpp $(KERNEL_SRC)
 TEST_DECORRELATE_SRC := $(TEST_DIR)/test_decorrelate.cpp $(KERNEL_SRC)
 TEST_REORDER_SRC := $(TEST_DIR)/test_reorder.cpp $(KERNEL_SRC)
-	
+TEST_BITPLANE_SRC := $(TEST_DIR)/test_bitplane.cpp $(KERNEL_SRC)
+TEST_ENCBLOCK_SRC := $(TEST_DIR)/test_encblock.cpp $(KERNEL_SRC)
+TEST_GATHER_SRC := $(TEST_DIR)/test_gather.cpp $(KERNEL_SRC)
+
 #* Targets
 KERNEL := gcow
 HOST_EXE := $(KERNEL)_host
@@ -61,6 +64,9 @@ TEST_EMAX_EXE := emax_test
 TEST_CAST_EXE := cast_test
 TEST_DECORRELATE_EXE := decorrelate_test
 TEST_REORDER_EXE := reorder_test
+TEST_BITPLANE_EXE := bitplane_test
+TEST_ENCBLOCK_EXE := encblock_test
+TEST_GATHER_EXE := gather_test
 
 XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
@@ -114,6 +120,21 @@ $(TEST_REORDER_EXE): $(TEST_REORDER_SRC)
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Test Executable: $(TEST_REORDER_EXE)"
 
+$(TEST_BITPLANE_EXE): $(TEST_BITPLANE_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_BITPLANE_EXE)"
+
+$(TEST_ENCBLOCK_EXE): $(TEST_ENCBLOCK_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_ENCBLOCK_EXE)"
+
+$(TEST_GATHER_EXE): $(TEST_GATHER_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_GATHER_EXE)"
+
 $(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
@@ -138,6 +159,18 @@ run_reorder_test: $(XCLBIN) $(TEST_REORDER_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=reorder`
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_REORDER_EXE) $(XCLBIN)
 
+run_bitplane_test: $(XCLBIN) $(TEST_BITPLANE_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=bitplane`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_BITPLANE_EXE) $(XCLBIN)
+
+run_encblock_test: $(XCLBIN) $(TEST_ENCBLOCK_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=encblock`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ENCBLOCK_EXE) $(XCLBIN)
+
+run_gather_test: $(XCLBIN) $(TEST_GATHER_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=gather`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_GATHER_EXE) $(XCLBIN)
+
 run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)
 
@@ -149,7 +182,7 @@ else
 endif
 
 clean:
-	-$(RM) -rf $(EMCONFIG_FILE) $(HOST_EXE) $(XCLBIN) *.xclbin *.xo $(XOS) *.log *.csv *summary *.json *.xml **/*.orig
+	-$(RM) -rf $(EMCONFIG_FILE) $(HOST_EXE) $(XCLBIN) *.xclbin *.xo $(XOS) *.log *.csv *summary *.json *.xml **/*.orig .nfs*
 	
 cleanall: clean
 	-$(RM) -rf _x.* .Xil .run

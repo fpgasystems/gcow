@@ -179,6 +179,7 @@ uint decode_partial_bitplanes(stream *const s, uint32 *const ublock,
     for (i = 0; x; i++, x >>= 1)
       ublock[i] += (uint32)(x & 1u) << k;
   }
+  return maxbits - bits;
 }
 
 uint decode_iblock(stream *const out_data, uint minbits, uint maxbits,

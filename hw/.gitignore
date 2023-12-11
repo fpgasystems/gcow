@@ -32,3 +32,4 @@ ext_metadata.json
 **/*.orig
 tests/data/*large.zfp
 **/*.ipcache/
+.nfs*

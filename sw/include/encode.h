@@ -69,6 +69,12 @@ void gather_partial_2d_block(float *block, const float *raw,
 */
 uint get_precision(int maxexp, uint maxprec, int minexp, int dim);
 
+uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
+                          uint maxprec, uint block_size);
+
+uint encode_partial_bitplanes(stream *const s,
+                              const uint32 *const ublock,
+                              uint maxbits, uint maxprec, uint block_size);
 
 uint encode_fblock(zfp_output* output, const float *fblock, size_t dim);
 uint encode_iblock(stream *const out_data, uint minbits, uint maxbits,
