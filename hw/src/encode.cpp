@@ -276,7 +276,8 @@ void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32 *iblock,
 {
   do
     *ublock++ = twoscomplement_to_negabinary(iblock[*perm++]);
-  while (--n);
+  while (n--);
+  //! Why `--n` doesn't work here?
 }
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
@@ -354,24 +355,43 @@ uint encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
   // stream s = *out_data;
   uint64 offset = stream_woffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
+  //* `kmin` is the cutoff of the least significant bit plane to encode.
+  //* E.g., if `intprec` is 32 and `maxprec` is 17, only [31:16] bit planes are encoded.
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
   uint i, k, n;
 
   /* encode one bit plane at a time from MSB to LSB */
 LOOP_ENCODE_ALL_BITPLANES:
-  for (k = intprec, n = 0; k-- > kmin;) {
+  for (k = intprec, n = 0; k > kmin;) {
+    k--;
     //^ Step 1: extract bit plane #k to x.
     uint64 x = 0;
 LOOP_ENCODE_ALL_BITPLANES_TRANSPOSE:
-    for (i = 0; i < block_size; i++)
+    for (i = 0; i < block_size; i++) {
       x += (uint64)((ublock[i] >> k) & 1u) << i;
+    }
+
     //^ Step 2: encode first n bits of bit plane.
     x = stream_write_bits(s, x, n);
+
     //^ Step 3: unary run-length encode remainder of bit plane.
 LOOP_ENCODE_ALL_BITPLANES_EMBED:
-    for (; n < block_size && stream_write_bit(s, !!x); x >>= 1, n++)
-      for (; n < block_size - 1 && !stream_write_bit(s, x & 1u); x >>= 1, n++)
-        ;
+    for (; n < block_size; x >>= 1, n++) {
+      if (!stream_write_bit(s, !!x)) {
+        //^ Negative group test (x == 0) -> Done with all bit planes.
+        break;
+      }
+      for (; n < block_size - 1; n++) {
+        //* Continue writing 0's until a 1 bit is found.
+        //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
+        if (stream_write_bit(s, x & 1u)) {
+          //* After writing a 1 bit, break out for another group test
+          //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+          break;
+        }
+        x >>= 1;
+      }
+    }
   }
 
   // *out_data = s;

@@ -55,6 +55,7 @@ TEST_REORDER_SRC := $(TEST_DIR)/test_reorder.cpp $(KERNEL_SRC)
 TEST_BITPLANE_SRC := $(TEST_DIR)/test_bitplane.cpp $(KERNEL_SRC)
 TEST_ENCBLOCK_SRC := $(TEST_DIR)/test_encblock.cpp $(KERNEL_SRC)
 TEST_GATHER_SRC := $(TEST_DIR)/test_gather.cpp $(KERNEL_SRC)
+TEST_WRITES_SRC := $(TEST_DIR)/test_writes.cpp $(KERNEL_SRC)
 
 #* Targets
 KERNEL := gcow
@@ -67,6 +68,7 @@ TEST_REORDER_EXE := reorder_test
 TEST_BITPLANE_EXE := bitplane_test
 TEST_ENCBLOCK_EXE := encblock_test
 TEST_GATHER_EXE := gather_test
+TEST_WRITES_EXE := writes_test
 
 XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
@@ -135,6 +137,11 @@ $(TEST_GATHER_EXE): $(TEST_GATHER_SRC)
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Test Executable: $(TEST_GATHER_EXE)"
 
+$(TEST_WRITES_EXE): $(TEST_WRITES_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_WRITES_EXE)"
+
 $(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
@@ -170,6 +177,10 @@ run_encblock_test: $(XCLBIN) $(TEST_ENCBLOCK_EXE) $(EMCONFIG_FILE)
 run_gather_test: $(XCLBIN) $(TEST_GATHER_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=gather`
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_GATHER_EXE) $(XCLBIN)
+
+run_writes_test: $(XCLBIN) $(TEST_WRITES_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=writes`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_WRITES_EXE) $(XCLBIN)
 
 run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)

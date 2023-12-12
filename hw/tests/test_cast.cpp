@@ -17,11 +17,16 @@ int main(int argc, char** argv)
 
   //* Initialize input.
   std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D);
+  size_t nx = 4;
+  size_t ny = 4;
 
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 4; x++)
-      fblock.at(x + 4 * y) = (float)(x + 100 * y + 3.1415926);
-
+  for (size_t j = 0; j < ny; j++)
+    for (size_t i = 0; i < nx; i++) {
+      double x = 2.0 * i / nx;
+      double y = 2.0 * j / ny;
+      fblock[i + nx * j] = (float)exp(-(x * x + y *
+                                        y)); // (float)(x + 100 * y + 3.1415926);
+    }
   std::cout << "input floats:\t" << fblock.size() << std::endl;
 
   //* Initialize output.
@@ -115,16 +120,16 @@ int main(int argc, char** argv)
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
 
-  int32 expected[16] = {
-    6588397, 8685549, 10782701, 12879853,
-    216303600, 218400752, 220497904, 222595056,
-    426018784, 428115936, 430213088, 432310240,
-    635734016, 637831168, 639928320, 642025472
+  int32 expected[BLOCK_SIZE_2D] = {
+    2097152, 1633263, 771499, 221038,
+    1633263, 1271987, 600844, 172144,
+    771499, 600844, 283818, 81315,
+    221038, 172144, 81315, 23297
   };
 
   //* Validate against software implementation.
   bool matched = true;
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < BLOCK_SIZE_2D; i++) {
     if (iblock.at(i) != expected[i]) {
       std::cout << "iblock[" << i << "] = " << iblock.at(i)
                 << " != " << expected[i] << std::endl;

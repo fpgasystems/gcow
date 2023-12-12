@@ -18,10 +18,16 @@ int main(int argc, char** argv)
   //* Initialize input.
   std::vector<float, aligned_allocator<float>> block(BLOCK_SIZE_2D);
 
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 4; x++)
-      block.at(x + 4 * y) = (float)(x + 100 * y + 3.1415926);
+  size_t nx = 4;
+  size_t ny = 4;
 
+  for (size_t j = 0; j < ny; j++)
+    for (size_t i = 0; i < nx; i++) {
+      double x = 2.0 * i / nx;
+      double y = 2.0 * j / ny;
+      block[i + nx * j] = (float)exp(-(x * x + y *
+                                       y)); // (float)(x + 100 * y + 3.1415926);
+    }
   std::cout << "input floats:\t" << block.size() << std::endl;
 
   /* OPENCL HOST CODE AREA START */
@@ -112,7 +118,7 @@ int main(int argc, char** argv)
   std::cout << "emax: " << *emax << std::endl;
 
   //* Validate against software implementation.
-  bool matched = *emax == 9;
+  bool matched = *emax == 1;
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
   return (matched ? EXIT_SUCCESS : EXIT_FAILURE);

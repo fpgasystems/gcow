@@ -17,9 +17,13 @@ int main(int argc, char** argv)
 
   //* Initialize input.
   std::vector<int32, aligned_allocator<int32>> iblock = {
-    324306927, -2097152, 0, 0, -209715205,
-    0, 0, 0, -7, 0, 0, 0, 8, 0, 0, 0
+    664778, 360415, 12185, 49910,
+    360415, 195402, 6607, 27060,
+    12186, 6607, 224, 915,
+    49910, 27059, 915, 3747
   };
+  // std::vector<int32, aligned_allocator<int32>> iblock = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  //  11, 12, 13, 14, 15, 16};
 
   //* Initialize output.
   std::vector<uint32, aligned_allocator<uint32>> ublock(BLOCK_SIZE_2D);
@@ -107,16 +111,26 @@ int main(int argc, char** argv)
             << std::endl;
 
   uint32 expected[BLOCK_SIZE_2D] = {
-    391485491, 2097152, 880803855, 0, 0, 9, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0
+    1992158, 1736739, 1736739, 462686,
+    28905, 28910, 28371, 28371,
+    116490, 116490, 288, 114420,
+    114423, 1175, 1175, 5095
   };
+
+  // uint32 expected[BLOCK_SIZE_2D] = {1, 6, 5, 26, 7, 25, 27, 30, 4, 29, 31, 24, 18, 28, 19, 16};
 
   //* Validate against software implementation.
   bool matched = true;
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
     if (ublock.at(i) != expected[i]) {
-      std::cout << "ublock[" << i << "] = " << ublock.at(i)
-                << " != " << expected[i] << std::endl;
+      std::cout << "(ublock[" << i << "] = " << ublock.at(i)
+                << " != " << expected[i] << ")";
       matched = false;
+    }
+    //* Print the values with each row on a new line.
+    std::cout << ublock.at(i) << " ";
+    if (i % 4 == 0) {
+      std::cout << std::endl;
     }
   }
 

@@ -2,7 +2,6 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
-#include <bitset>
 
 #include "host.hpp"
 #include "types.hpp"
@@ -17,14 +16,6 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  std::vector<uint32, aligned_allocator<uint32>> ublock = {
-    1992158, 1736739, 1736739, 462686,
-    28905, 28910, 28371, 28371,
-    116490, 116490, 288, 114420,
-    114423, 1175, 1175, 5095
-  };
-
-  std::cout << "input unsigned ints:\t" << ublock.size() << std::endl;
 
   //* Initialize output.
   size_t max_bytes = 1000; //* Does not matter for this test, just a bound.
@@ -51,7 +42,7 @@ int main(int argc, char** argv)
   devices.resize(1);
   cl::Program program(context, devices, gcow_bins);
   std::cout << "\nCreated program from the bitstream\n";
-  cl::Kernel kernel(program, "bitplane");
+  cl::Kernel kernel(program, "writes");
   std::cout << "Created a kernel using the loaded program object\n";
 
   // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr
@@ -62,45 +53,12 @@ int main(int argc, char** argv)
 
   //* Allocate buffers in Global Memory
   OCL_CHECK(err,
-            cl::Buffer buffer_ublock(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              BLOCK_SIZE_2D*sizeof(uint32),
-              ublock.data(),
-              &err));
-  double max_error = 0;
-  OCL_CHECK(err,
-            cl::Buffer buffer_max_error(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(double),
-              &max_error,
-              &err));
-  uint maxprec = 0;
-  OCL_CHECK(err,
-            cl::Buffer buffer_maxprec(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(uint),
-              &maxprec,
-              &err));
-  bool exceeded = false;
-  OCL_CHECK(err,
-            cl::Buffer buffer_exceeded(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(bool),
-              &exceeded,
-              &err));
-  OCL_CHECK(err,
             cl::Buffer buffer_out_data(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
               max_bytes,
               out_data.data(),
               &err));
-  uint encoded_bits = 0;
-  OCL_CHECK(err,
-            cl::Buffer buffer_encoded_bits(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(uint),
-              &encoded_bits,
-              &err));
+
   ptrdiff_t stream_idx = 0;
   OCL_CHECK(err,
             cl::Buffer buffer_stream_idx(
@@ -115,26 +73,16 @@ int main(int argc, char** argv)
   //* Set the Kernel Arguments
   int arg_counter = 0;
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_ublock));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_max_error));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_maxprec));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_exceeded));
-  OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_out_data));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_encoded_bits));
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_stream_idx));
 
   //* Copy input data to device global memory
-  OCL_CHECK(err,
-  err = q.enqueueMigrateMemObjects({
-    //* Input data objects
-    buffer_ublock,
-  }, 0 /* 0: from host to device */));
+  // OCL_CHECK(err,
+  // err = q.enqueueMigrateMemObjects({
+  //   //* Input data objects
+  //   buffer_ublock,
+  // }, 0 /* 0: from host to device */));
 
   //* Launch the Kernel
   std::cout << "Launching kernel ...\n";
@@ -146,11 +94,7 @@ int main(int argc, char** argv)
   //* Copy Result from Device Global Memory to Host Local Memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
-    buffer_max_error,
-    buffer_maxprec,
-    buffer_exceeded,
     buffer_out_data,
-    buffer_encoded_bits,
     buffer_stream_idx,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
@@ -171,29 +115,17 @@ int main(int argc, char** argv)
   };
 
   //* Validate against software implementation.
-  std::cout << "Exceeded: " << exceeded << std::endl;
-  std::cout << "Max error: " << max_error << std::endl;
-  std::cout << "Max prec: " << maxprec << std::endl;
-  std::cout << "Encoded bits: " << encoded_bits << std::endl;
+  assert (stream_idx_host == stream_idx);
   std::cout << "Stream idx: " << stream_idx << std::endl;
-  // std::cout << "Output elements: " << encoded_bits/sizeof(stream_word) << std::endl;
-
-  // assert(!exceeded);
-  // // assert(max_error == 0.000977);
-  // assert(maxprec == 17);
-  // assert(encoded_bits == 65);
-  // assert(stream_idx_host == stream_idx);
 
   bool matched = true;
   for (int i = 0; i < stream_idx_host; i++) {
-    std::bitset<64> out(out_data.at(i));
-    std::bitset<64> val(expected[i]);
     if (out_data.at(i) != expected[i]) {
-      std::cout << "out_data[" << i << "] = " << out
-                << " != " << val << std::endl;
+      std::cout << "out_data[" << i << "] = " << out_data.at(i)
+                << " != " << expected[i] << std::endl;
       matched = false;
     } else {
-      std::cout << "out_data[" << i << "] = " << out << std::endl;
+      std::cout << "out_data[" << i << "] = " << out_data.at(i) << std::endl;
     }
   }
 

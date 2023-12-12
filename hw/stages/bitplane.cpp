@@ -14,19 +14,19 @@ extern "C" {
 #pragma HLS INTERFACE mode=m_axi port=encoded_bits offset=slave bundle=gmem0
 #pragma HLS INTERFACE mode=m_axi port=stream_idx offset=slave bundle=gmem0
 
-    int e = 9;
+    int emax = 1;
     uint bits = 1 + EBITS;
     size_t max_bytes = 1000; //* Does not matter for this test, just a bound.
     stream s(out_data, max_bytes);
 
-    stream_write_bits(s, 2 * e + 1, bits);
+    stream_write_bits(s, 2 * emax + 1, bits);
 
     zfp_output output;
     double tolerance = 1e-3;
     *max_error = set_zfp_output_accuracy(output, tolerance);
 
     //* Start encoding.
-    *maxprec = get_precision(e, output.maxprec, output.minexp, 2);
+    *maxprec = get_precision(emax, output.maxprec, output.minexp, 2);
     *exceeded = exceeded_maxbits(output.maxbits, *maxprec, BLOCK_SIZE_2D);
     *encoded_bits = encode_all_bitplanes(s, ublock, *maxprec, BLOCK_SIZE_2D);
     //* Close the stream.

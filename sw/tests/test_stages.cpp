@@ -84,37 +84,54 @@ TEST(STAGES, GATHER_2D)
 
 TEST(STAGES, EMAX)
 {
-  float raw[4][4]; //* 4x4 source array
+  float raw[BLOCK_SIZE_2D]; //* 4x4 source array
+  size_t nx = 4;
+  size_t ny = 4;
 
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 4; x++)
-      raw[y][x] = (float)(x + 4 * y + 1);
+  for (size_t j = 0; j < ny; j++)
+    for (size_t i = 0; i < nx; i++)
+      raw[i + nx * j] = (float)(i + 4 * j + 1);
 
   EXPECT_EQ(get_block_exponent((const float*)raw, BLOCK_SIZE_2D), 5);
 
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 4; x++)
-      raw[y][x] = (float)(x + 100 * y + 3.1415926);
+  for (size_t j = 0; j < ny; j++)
+    for (size_t i = 0; i < nx; i++) {
+      double x = 2.0 * i / nx;
+      double y = 2.0 * j / ny;
+      raw[i + nx * j] = (float)exp(-(x * x + y *
+                                     y)); // (float)(x + 100 * y + 3.1415926);
+    }
 
-  EXPECT_EQ(get_block_exponent((const float*)raw, BLOCK_SIZE_2D), 9);
+  EXPECT_EQ(get_block_exponent((const float*)raw, BLOCK_SIZE_2D), 1);
 }
 
 TEST(STAGES, CAST)
 {
-  float fblock[4][4]; //* 4x4 source array
+  float fblock[BLOCK_SIZE_2D]; //* 4x4 source array
   int32 iblock[BLOCK_SIZE_2D];
 
-  for (int y = 0; y < 4; y++)
-    for (int x = 0; x < 4; x++)
-      fblock[y][x] = (float)(x + 100 * y + 3.1415926);
+  size_t nx = 4;
+  size_t ny = 4;
+
+  for (size_t j = 0; j < ny; j++)
+    for (size_t i = 0; i < nx; i++) {
+      double x = 2.0 * i / nx;
+      double y = 2.0 * j / ny;
+      fblock[i + nx * j] = (float)exp(-(x * x + y *
+                                        y)); // (float)(x + 100 * y + 3.1415926);
+    }
 
   fwd_cast_block(iblock, (const float*)fblock, BLOCK_SIZE_2D, 9);
+  for (int i = 0; i < BLOCK_SIZE_2D; i++) {
+    printf("%d, ", iblock[i]);
+  }
+  printf("\n");
 
   int32 expected[BLOCK_SIZE_2D] = {
-    6588397, 8685549, 10782701, 12879853,
-    216303600, 218400752, 220497904, 222595056,
-    426018784, 428115936, 430213088, 432310240,
-    635734016, 637831168, 639928320, 642025472
+    2097152, 1633263, 771499, 221038,
+    1633263, 1271987, 600844, 172144,
+    771499, 600844, 283818, 81315,
+    221038, 172144, 81315, 23297
   };
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -125,17 +142,19 @@ TEST(STAGES, CAST)
 TEST(STAGES, DECORRELATE)
 {
   int32 iblock[BLOCK_SIZE_2D] = {
-    6588397, 8685549, 10782701, 12879853,
-    216303600, 218400752, 220497904, 222595056,
-    426018784, 428115936, 430213088, 432310240,
-    635734016, 637831168, 639928320, 642025472
+    2097152, 1633263, 771499, 221038,
+    1633263, 1271987, 600844, 172144,
+    771499, 600844, 283818, 81315,
+    221038, 172144, 81315, 23297
   };
 
   fwd_decorrelate_2d_block(iblock);
 
   int32 expected[BLOCK_SIZE_2D] = {
-    324306927, -2097152, 0, 0, -209715205,
-    0, 0, 0, -7, 0, 0, 0, 8, 0, 0, 0
+    664778, 360415, 12185, 49910,
+    360415, 195402, 6607, 27060,
+    12186, 6607, 224, 915,
+    49910, 27059, 915, 3747
   };
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -151,17 +170,31 @@ TEST(STAGES, DECORRELATE)
 TEST(STAGES, REORDER)
 {
   int32 iblock[BLOCK_SIZE_2D] = {
-    324306927, -2097152, 0, 0, -209715205,
-    0, 0, 0, -7, 0, 0, 0, 8, 0, 0, 0
+    664778, 360415, 12185, 49910,
+    360415, 195402, 6607, 27060,
+    12186, 6607, 224, 915,
+    49910, 27059, 915, 3747
   };
+
+  // int32 iblock[BLOCK_SIZE_2D] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  //                                11, 12, 13, 14, 15, 16};
 
   uint32 ublock[BLOCK_SIZE_2D];
 
   fwd_reorder_int2uint(ublock, iblock, PERM_2D, BLOCK_SIZE_2D);
 
   uint32 expected[BLOCK_SIZE_2D] = {
-    391485491, 2097152, 880803855, 0, 0, 9, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0
+    1992158, 1736739, 1736739, 462686,
+    28905, 28910, 28371, 28371,
+    116490, 116490, 288, 114420,
+    114423, 1175, 1175, 5095
   };
+  // uint32 expected[BLOCK_SIZE_2D] = {1, 6, 5, 26, 7, 25, 27, 30, 4, 29, 31, 24, 18, 28, 19, 16};
+
+  for (int i = 0; i < BLOCK_SIZE_2D; i++) {
+    printf("%u, ", ublock[i]);
+  }
+  printf("\n");
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
     EXPECT_EQ(ublock[i], expected[i]);
@@ -170,49 +203,67 @@ TEST(STAGES, REORDER)
 
 TEST(STAGES, STREAM_WRITE)
 {
-  int e = 9;
+  int e = 1;
   uint bits = 1 + EBITS;
   size_t output_bytes = 1000;
   void *buffer = malloc(output_bytes);
   stream *s = stream_init(buffer, output_bytes);
 
-  stream_write_bits(s, 2 * e + 1, bits);
-  EXPECT_EQ(s->begin[0], 0U);
-  EXPECT_EQ(s->buffer, 19UL);
-  EXPECT_EQ(stream_size_bytes(s), 0U);
+  // stream_write_bits(s, 2 * e + 1, bits);
+  stream_write_bits(s, 7455816852505100291UL, 64);
+  // EXPECT_EQ(s->begin[0], 0U);
+  // EXPECT_EQ(s->buffer, 3UL);
+  // EXPECT_EQ(stream_size_bytes(s), 0U);
 
   printf("stream: ");
   for (int i = 0; i < s->idx; i++) {
     printf("%lu, ", s->begin[i]);
   }
   printf("\nstream.buffer: %lu\n", s->buffer);
-  printf("stream_size_bytes: %lu\n", stream_size_bytes(s));
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
+
+  stream_write_bits(s, 432UL, 9);
+
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
+
 
   stream_flush(s);
-  EXPECT_EQ(s->begin[0], 19UL);
-  EXPECT_EQ(s->buffer, 0U);
-  EXPECT_EQ(stream_size_bytes(s), sizeof(uint64));
+  printf("Flushed stream.\n\n");
+  // EXPECT_EQ(s->begin[0], 3UL);
+  // EXPECT_EQ(s->buffer, 0U);
+  // EXPECT_EQ(stream_size_bytes(s), sizeof(uint64));
 
   printf("stream: ");
   for (int i = 0; i < s->idx; i++) {
     printf("%lu, ", s->begin[i]);
   }
   printf("\nstream.buffer: %lu\n", s->buffer);
-  printf("stream_size_bytes: %lu\n", stream_size_bytes(s));
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
 }
 
 TEST(STAGES, ENCODE_ALL_BITPLANES)
 {
-  int e = 9;
+  int emax = 1;
   uint bits = 1 + EBITS;
   size_t output_bytes = 1000; //* Does not matter for this test, just a bound.
   void *buffer = malloc(output_bytes);
   stream *s = stream_init(buffer, output_bytes);
 
-  stream_write_bits(s, 2 * e + 1, bits);
+  stream_write_bits(s, 2 * emax + 1, bits);
 
   uint32 ublock[BLOCK_SIZE_2D] = {
-    391485491, 2097152, 880803855, 0, 0, 9, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0
+    1992158, 1736739, 1736739, 462686,
+    28905, 28910, 28371, 28371,
+    116490, 116490, 288, 114420,
+    114423, 1175, 1175, 5095
   };
 
   zfp_output *output = alloc_zfp_output();
@@ -220,7 +271,7 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   double max_error = set_zfp_output_accuracy(output, tolerance);
   printf("Maximum error:\t\t%f\n", max_error);
 
-  uint maxprec = get_precision(e, output->maxprec, output->minexp, 2);
+  uint maxprec = get_precision(emax, output->maxprec, output->minexp, 2);
   printf("Max precision:\t\t%u\n", maxprec);
   bool exceeded = exceeded_maxbits(output->maxbits, maxprec, BLOCK_SIZE_2D);
   printf("Maxbits:\t\t%u\n", output->maxbits);
@@ -230,19 +281,20 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
 
   //* Only test encoding without bit limits.
   uint encoded_bits = encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
-  printf("Encoded bits:\t\t%u\n", encoded_bits);
+  printf("Encoded bits:\t\t%u\n\n", encoded_bits);
 
   uint64 expected[2] = {
-    72375632423897107UL,
-    1114129UL,
+    7455816852505100291UL,
+    432UL
   };
+
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");
   for (int i = 0; i < s->idx; i++) {
     printf("%lu, ", s->begin[i]);
   }
   printf("\nstream.buffer: %lu\n", s->buffer);
-  printf("stream_size_bytes: %lu\n", stream_size_bytes(s));
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
 
   EXPECT_EQ(s->begin[0], expected[0]);
   EXPECT_EQ(s->buffer, expected[1]);

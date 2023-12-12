@@ -18,7 +18,7 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  size_t dim = 8;
+  size_t dim = 4;
   size_t in_dim = 2;
   size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);
@@ -197,6 +197,7 @@ void get_input_2d(float *input_data, size_t n)
     for (i = 0; i < nx; i++) {
       double x = 2.0 * i / nx;
       double y = 2.0 * j / ny;
-      input_data[i + nx * j] = (float)exp(-(x * x + y * y));
+      input_data[i + nx * j] = (float)exp(-(x * x + y *
+                                            y)); //(i + 100 * j + 3.1415926);
     }
 }

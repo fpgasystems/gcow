@@ -3,7 +3,9 @@
 ## Hardware
 
 ```bash
-make all KERNEL=<gcow|a_test_kernel> TARGET=<hw_emu|hw> PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1
+make all TARGET=<hw_emu|hw> PLATFORM=xilinx_u250_gen3x16_xdma_4_1_202210_1
+#* Run emulation tests
+make KERNEL=<stage> run_<stage>_test
 ```
 
 ## Software

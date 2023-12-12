@@ -271,7 +271,7 @@ void fwd_reorder_int2uint(uint32* ublock, const int32* iblock,
 {
   do
     *ublock++ = twoscomplement_to_negabinary(iblock[*perm++]);
-  while (--n);
+  while (n--);
 }
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
@@ -351,17 +351,34 @@ uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
   uint i, k, n;
 
   /* encode one bit plane at a time from MSB to LSB */
-  for (k = intprec, n = 0; k-- > kmin;) {
+  for (k = intprec, n = 0; k > kmin;) {
+    k--;
     //^ Step 1: extract bit plane #k to x.
     uint64 x = 0;
-    for (i = 0; i < block_size; i++)
+    for (i = 0; i < block_size; i++) {
       x += (uint64)((ublock[i] >> k) & 1u) << i;
+    }
+
     //^ Step 2: encode first n bits of bit plane.
     x = stream_write_bits(s, x, n);
+
     //^ Step 3: unary run-length encode remainder of bit plane.
-    for (; n < block_size && stream_write_bit(s, !!x); x >>= 1, n++)
-      for (; n < block_size - 1 && !stream_write_bit(s, x & 1u); x >>= 1, n++)
-        ;
+    for (; n < block_size; x >>= 1, n++) {
+      if (!stream_write_bit(s, !!x)) {
+        //^ Negative group test (x == 0) -> Done with all bit planes.
+        break;
+      }
+      for (; n < block_size - 1; n++) {
+        //* Continue writing 0's until a 1 bit is found.
+        //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
+        if (stream_write_bit(s, x & 1u)) {
+          //* After writing a 1 bit, break out for another group test
+          //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+          break;
+        }
+        x >>= 1;
+      }
+    }
   }
 
   // *out_data = s;
