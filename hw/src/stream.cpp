@@ -58,7 +58,7 @@ inline uint64 stream_read_bits(stream &s, size_t n)
 /* Buffer/write 0 <= n <= 64 low bits of value and return remaining bits */
 uint64 stream_write_bits(stream &s, uint64 value, size_t n)
 {
-  /* append bit string to buffer */
+  /* append bit stream to buffer */
   //? Should be prepending (not appending) the `value` to the buffered bits.
   //* The `value` is shifted left by the number of buffered bits.
   //* For example, if the buffer is 0b0101 and the value is 0b11, then the buffer becomes 0b110101.
@@ -73,7 +73,6 @@ uint64 stream_write_bits(stream &s, uint64 value, size_t n)
     val >>= 1;
     n--;
     /* assert: 0 <= n < 64; wsize <= s.buffered_bits <= wsize + n */
-    //^ This loop technically won't happen snce `sizeof(s.buffer) > sizeof(value)`.
     do {
       /* output wsize bits while buffer is full */
       s.buffered_bits -= SWORD_BITS;
@@ -88,7 +87,8 @@ uint64 stream_write_bits(stream &s, uint64 value, size_t n)
   /* assert: 0 <= s.buffered_bits < wsize */
   s.buffer &= (stream_word(1) << s.buffered_bits) - stream_word(1);
   /* assert: 0 <= n < 64 */
-  return value >> n;
+  //! Return the casted `val` (on which the previous shifting was done) instead of the original `value`.
+  return val >> n;
 }
 
 /* Write single bit (must be 0 or 1) */

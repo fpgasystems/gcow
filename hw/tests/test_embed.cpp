@@ -65,7 +65,7 @@ int main(int argc, char** argv)
   devices.resize(1);
   cl::Program program(context, devices, gcow_bins);
   std::cout << "\nCreated program from the bitstream\n";
-  cl::Kernel kernel(program, "bitplane");
+  cl::Kernel kernel(program, "embed");
   std::cout << "Created a kernel using the loaded program object\n";
 
   // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr
@@ -178,16 +178,24 @@ int main(int argc, char** argv)
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
 
-  // ptrdiff_t stream_idx_host = 2;
-  // uint64 expected[stream_idx_host] = {
-  //   7455816852505100291UL,
-  //   432UL
-  // };
-  ptrdiff_t stream_idx_host = 1;
-  uint64 expected[stream_idx_host] = {
-    // 1687329373683715UL,
-    44828585475UL
+  ptrdiff_t stream_idx_host = 2;
+  uint64 expected[] = {
+    // 17311055420935110659UL, 14508843279UL
+
+    7455816852505100291UL, 432UL
   };
+  // ptrdiff_t stream_idx_host = 9;
+  // uint64 expected[] = {
+  //   // 9115276807778466307UL,
+  //   // 34662415834867UL
+
+  //   // 17311055420935110659UL, 14508843279UL
+
+  //   9567782226938952195UL, 14330702353090617021UL,
+  //   218862280121572774UL, 672737011906360040UL, 19985027412275044UL,
+  //   15971701467313741501UL, 162567284791238054UL, 661476294851001832UL, 10190UL
+
+  // };
 
   // uint64 expected[stream_idx_host] = {
   //   2318511421321904131,

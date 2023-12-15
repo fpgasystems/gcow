@@ -31,5 +31,6 @@ ext_metadata.json
 .run/
 **/*.orig
 tests/data/*large.zfp
+tests/data/*.gcow
 **/*.ipcache/
 .nfs*

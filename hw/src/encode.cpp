@@ -277,7 +277,7 @@ void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32 *iblock,
   do
     *ublock++ = twoscomplement_to_negabinary(iblock[*perm++]);
   while (n--);
-  //! Why `--n` doesn't work here?
+  //? Why `--n` doesn't pass the emulation test? (last value is always 0)
 }
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
@@ -291,7 +291,7 @@ uint encode_partial_bitplanes(stream &s, volatile const uint32 *const ublock,
   //* `kmin` is the cutoff of the least significant bit plane to encode.
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
   uint bits = maxbits;
-  uint i, k, m, n;
+  uint k, m, n;
   uint64 x;
 
   //* Encode one bit plane at a time from MSB to LSB
@@ -300,7 +300,7 @@ LOOP_ENCODE_PARTIAL_BITPLANES:
     //^ Step 1: Extract bit plane #k to x
     x = 0;
 LOOP_ENCODE_PARTIAL_BITPLANES_TRANSPOSE:
-    for (i = 0; i < block_size; i++)
+    for (uint i = 0; i < block_size; i++)
       //* Below puts the `k`th bit of `data[i]` into the `i`th bit of `x`.
       //* I.e., transposing into the bit plane format.
       x += (uint64)((ublock[i] >> k) & 1u) << i;
@@ -350,25 +350,22 @@ LOOP_ENCODE_PARTIAL_BITPLANES_EMBED:
 uint encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
                           uint maxprec, uint block_size)
 {
-  /* make a copy of bit stream to avoid aliasing */
-  //! CHANGE: No copy is made here!
-  // stream s = *out_data;
   uint64 offset = stream_woffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
   //* `kmin` is the cutoff of the least significant bit plane to encode.
   //* E.g., if `intprec` is 32 and `maxprec` is 17, only [31:16] bit planes are encoded.
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
-  uint i, k, n;
+  uint k, n;
 
   /* encode one bit plane at a time from MSB to LSB */
 LOOP_ENCODE_ALL_BITPLANES:
-  for (k = intprec, n = 0; k > kmin;) {
-    k--;
-    //^ Step 1: extract bit plane #k to x.
-    uint64 x = 0;
+  for (k = intprec, n = 0; k-- > kmin;) {
+    //^ Step 1: extract bit plane #k of every block to x.
+    stream_word x(0);
+
 LOOP_ENCODE_ALL_BITPLANES_TRANSPOSE:
-    for (i = 0; i < block_size; i++) {
-      x += (uint64)((ublock[i] >> k) & 1u) << i;
+    for (uint i = 0; i < block_size; i++) {
+      x += ( (stream_word(ublock[i]) >> k) & stream_word(1) ) << i;
     }
 
     //^ Step 2: encode first n bits of bit plane.
@@ -381,20 +378,20 @@ LOOP_ENCODE_ALL_BITPLANES_EMBED:
         //^ Negative group test (x == 0) -> Done with all bit planes.
         break;
       }
-      for (; n < block_size - 1; n++) {
+LOOP_ENCODE_ALL_BITPLANES_EMBED_INNER:
+      for (; n < block_size - 1; x >>= 1, n++) {
         //* Continue writing 0's until a 1 bit is found.
         //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
-        if (stream_write_bit(s, x & 1u)) {
+        if (stream_write_bit(s, x & stream_word(1))) {
           //* After writing a 1 bit, break out for another group test
           //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+          //* I.e., for every 1 bit encoded, do a group test on the rest.
           break;
         }
-        x >>= 1;
       }
     }
   }
 
-  // *out_data = s;
   //* Returns the number of bits written.
   return (uint)(stream_woffset(s) - offset);
 }

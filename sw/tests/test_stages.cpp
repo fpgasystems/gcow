@@ -9,6 +9,122 @@
 #include "stream.h"
 
 
+void transpose_bitplanes(stream *const s, const uint32 *const ublock,
+                         uint maxprec, uint block_size)
+{
+  uint64 offset = stream_woffset(s);
+  uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
+  uint kmin = intprec > maxprec ? intprec - maxprec : 0;
+  uint i, k, n;
+
+  /* encode one bit plane at a time from MSB to LSB */
+  for (k = intprec, n = 0; k-- > kmin;) {
+    //^ Step 1: extract bit plane #k to x.
+    uint64 x = 0;
+    for (i = 0; i < block_size; i++) {
+      x += (uint64)((ublock[i] >> k) & 1u) << i;
+    }
+
+    printf("%lu, ", x);
+
+    stream_write_bits(s, x, block_size);
+  }
+  printf("\n");
+}
+
+uint encode_bitplanes(stream *const s, const uint32 *const ublock,
+                      uint maxprec, uint block_size)
+{
+  /* make a copy of bit stream to avoid aliasing */
+  // stream s = *out_data;
+  uint64 offset = stream_woffset(s);
+  uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
+  uint kmin = intprec > maxprec ? intprec - maxprec : 0;
+  uint k = intprec;
+  uint n = 0;
+
+  /* encode one bit plane at a time from MSB to LSB */
+  while (k-- > kmin) {
+    // for (k = intprec, n = 0; k-- > kmin;) {
+    //^ Step 1: extract bit plane #k to x.
+    uint64 x = 0;
+    for (uint i = 0; i < block_size; i++) {
+      x += (uint64)((ublock[i] >> k) & 1u) << i;
+    }
+
+    // //^ Step 2: encode first n bits of bit plane.
+    // x = stream_write_bits(s, x, n);
+
+    //^ Step 3: unary run-length encode remainder of bit plane.
+    for (; n < block_size; x >>= 1, n++) {
+      if (!stream_write_bit(s, !!x)) {
+        //^ Negative group test (x == 0) -> Done with all bit planes.
+        break;
+      }
+      for (; n < block_size - 1; x >>= 1, n++) {
+        //* Continue writing 0's until a 1 bit is found.
+        //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
+        if (stream_write_bit(s, x & 1u)) {
+          //* After writing a 1 bit, break out for another group test
+          //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+          break;
+        }
+      }
+    }
+  }
+
+  // *out_data = s;
+  //* Returns the number of bits written.
+  return (uint)(stream_woffset(s) - offset);
+}
+
+uint embedded_encoding(stream *const s, const uint32 *const ublock,
+                       uint maxprec, uint block_size)
+{
+  uint total = 17;
+  uint64 inputs[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 9, 15, 6920, 6918};
+  // uint64 inputs[] = {
+  //   2002158, 6736799, 2736739, 462686,
+  //   28905, 28910, 90992, 28371,
+  //   116400, 116490, 388, 514420,
+  //   114423, 1375, 1195, 6066,
+  //   1992158, 1736739, 1736739, 462686,
+  //   28905, 28910, 28371, 28371,
+  //   116490, 116490, 288, 114420,
+  //   114423, 1175, 1175, 5095
+  // };
+  uint64 offset = stream_woffset(s);
+  uint n = 0;
+  uint i = 0;
+
+  /* encode one bit plane at a time from MSB to LSB */
+  while (i < total) {
+    uint64 x = inputs[i++];
+    stream_write_bits(s, x, n);
+    //^ Step 3: unary run-length encode remainder of bit plane.
+    for (; n < block_size; x >>= 1, n++) {
+      if (!stream_write_bit(s, !!x)) {
+        //^ Negative group test (x == 0) -> Done with all bit planes.
+        break;
+      }
+      for (; n < block_size - 1; x >>= 1, n++) {
+        //* Continue writing 0's until a 1 bit is found.
+        //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
+        if (stream_write_bit(s, x & 1u)) {
+          //* After writing a 1 bit, break out for another group test
+          //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+          break;
+        }
+      }
+    }
+  }
+
+  // *out_data = s;
+  //* Returns the number of bits written.
+  return (uint)(stream_woffset(s) - offset);
+}
+
+
 TEST(STAGES, GATHER_2D)
 {
   uint dim = 2;
@@ -266,6 +382,20 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
     114423, 1175, 1175, 5095
   };
 
+  //  uint32 ublock[BLOCK_SIZE_2D] = {
+  //   2002158, 6736799, 2736739, 462686,
+  //   28905, 28910, 90992, 28371,
+  //   116400, 116490, 388, 514420,
+  //   114423, 1375, 1195, 6066
+  // };
+
+  // uint32 ublock[BLOCK_SIZE_2D] = {
+  //   1992158, 1736739, 1736739, 462686,
+  //   38905, 28910, 28371, 28371,
+  //   116490, 116490, 288, 114420,
+  //   114423, 1175, 1175, 5095
+  // };
+
   zfp_output *output = alloc_zfp_output();
   double tolerance = 1e-3;
   double max_error = set_zfp_output_accuracy(output, tolerance);
@@ -288,6 +418,16 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
     432UL
   };
 
+  // uint64 expected[2] = {
+  //   2318511421321904131,
+  //   113368486UL
+  // };
+
+  // uint64 expected[2] = {
+  //   7455816852505100291UL,
+  //   433UL
+  // };
+
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");
   for (int i = 0; i < s->idx; i++) {
@@ -305,6 +445,242 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   EXPECT_EQ(s->begin[1], expected[1]);
   EXPECT_EQ(s->buffer, 0U);
   EXPECT_EQ(stream_size_bytes(s), 2*sizeof(uint64));
+
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream_size_bytes: %lu\n", stream_size_bytes(s));
+}
+
+TEST(STAGES, ENCODE_BITPLANES)
+{
+  int emax = 1;
+  uint bits = 1 + EBITS;
+  size_t output_bytes = 1000; //* Does not matter for this test, just a bound.
+  void *buffer = malloc(output_bytes);
+  stream *s = stream_init(buffer, output_bytes);
+
+  stream_write_bits(s, 2 * emax + 1, bits);
+
+  // uint32 ublock[BLOCK_SIZE_2D] = {
+  //   1992158, 1736739, 1736739, 462686,
+  //   28905, 28910, 28371, 28371,
+  //   116490, 116490, 288, 114420,
+  //   114423, 1175, 1175, 5095
+  // };
+
+  //  uint32 ublock[BLOCK_SIZE_2D] = {
+  //   2002158, 6736799, 2736739, 462686,
+  //   28905, 28910, 90992, 28371,
+  //   116400, 116490, 388, 514420,
+  //   114423, 1375, 1195, 6066
+  // };
+
+  uint32 ublock[BLOCK_SIZE_2D] = {
+    4294967236, 329467215, 4294967214, 1104967293,
+    1294967212, 4294967281, 4294967240, 3294967209,
+    4294967208, 4294967277, 22967206, 4294967205,
+    1294967234, 494967203, 4294967202, 294967251
+  };
+
+  zfp_output *output = alloc_zfp_output();
+  double tolerance = 1e-3;
+  double max_error = set_zfp_output_accuracy(output, tolerance);
+  printf("Maximum error:\t\t%f\n", max_error);
+
+  uint maxprec = get_precision(emax, output->maxprec, output->minexp, 2);
+  printf("Max precision:\t\t%u\n", maxprec);
+  bool exceeded = exceeded_maxbits(output->maxbits, maxprec, BLOCK_SIZE_2D);
+  printf("Maxbits:\t\t%u\n", output->maxbits);
+  printf("Exceeded maxbits:\t%s\n", exceeded ? "true" : "false");
+  EXPECT_FALSE(exceeded);
+
+
+  //* Only test encoding without bit limits.
+  uint encoded_bits = encode_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  printf("Encoded bits:\t\t%u\n\n", encoded_bits);
+
+  uint64 expected[2] = {
+    7455816852505100291UL,
+    432UL
+  };
+
+  // uint64 expected[2] = {
+  //   2318511421321904131,
+  //   113368486UL
+  // };
+
+  // uint64 expected[2] = {
+  //   7455816852505100291UL,
+  //   433UL
+  // };
+
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
+
+  // EXPECT_EQ(s->begin[0], expected[0]);
+  // EXPECT_EQ(s->buffer, expected[1]);
+  // EXPECT_EQ(stream_size_bytes(s), sizeof(uint64));
+
+  stream_flush(s);
+
+  // EXPECT_EQ(s->begin[1], expected[1]);
+  // EXPECT_EQ(s->buffer, 0U);
+  // EXPECT_EQ(stream_size_bytes(s), 2*sizeof(uint64));
+
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream_size_bytes: %lu\n", stream_size_bytes(s));
+}
+
+TEST(STAGES, TRANSPOSE)
+{
+  int emax = 1;
+  uint bits = 1 + EBITS;
+  size_t output_bytes = 1000; //* Does not matter for this test, just a bound.
+  void *buffer = malloc(output_bytes);
+  stream *s = stream_init(buffer, output_bytes);
+
+  stream_write_bits(s, 2 * emax + 1, bits);
+
+  uint32 ublock[BLOCK_SIZE_2D] = {
+    1992158, 1736739, 1736739, 462686,
+    28905, 28910, 28371, 28371,
+    116490, 116490, 288, 114420,
+    114423, 1175, 1175, 5095
+  };
+
+  //  uint32 ublock[BLOCK_SIZE_2D] = {
+  //   2002158, 6736799, 2736739, 462686,
+  //   28905, 28910, 90992, 28371,
+  //   116400, 116490, 388, 514420,
+  //   114423, 1375, 1195, 6066
+  // };
+
+  zfp_output *output = alloc_zfp_output();
+  double tolerance = 1e-3;
+  double max_error = set_zfp_output_accuracy(output, tolerance);
+  printf("Maximum error:\t\t%f\n", max_error);
+
+  uint maxprec = get_precision(emax, output->maxprec, output->minexp, 2);
+  printf("Max precision:\t\t%u\n", maxprec);
+  bool exceeded = exceeded_maxbits(output->maxbits, maxprec, BLOCK_SIZE_2D);
+  printf("Maxbits:\t\t%u\n", output->maxbits);
+  printf("Exceeded maxbits:\t%s\n", exceeded ? "true" : "false");
+  EXPECT_FALSE(exceeded);
+
+
+  //* Only test encoding without bit limits.
+  transpose_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+
+  uint64 expected[5] = {
+    3, 0, 1008806316530991104, 1152954490257673728, 3542070
+    // 3, 0, 144128382282498048, 10957282151736805888, 3542582,
+  };
+
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
+
+  // EXPECT_EQ(s->begin[0], expected[0]);
+  // EXPECT_EQ(s->buffer, expected[1]);
+  // EXPECT_EQ(stream_size_bytes(s), sizeof(uint64));
+
+  stream_flush(s);
+
+  // EXPECT_EQ(s->begin[1], expected[1]);
+  // EXPECT_EQ(s->buffer, 0U);
+  // EXPECT_EQ(stream_size_bytes(s), 2*sizeof(uint64));
+
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream_size_bytes: %lu\n", stream_size_bytes(s));
+}
+
+TEST(STAGES, EMBEDDED_ENCODING)
+{
+  int emax = 1;
+  uint bits = 1 + EBITS;
+  size_t output_bytes = 1000; //* Does not matter for this test, just a bound.
+  void *buffer = malloc(output_bytes);
+  stream *s = stream_init(buffer, output_bytes);
+
+  stream_write_bits(s, 2 * emax + 1, bits);
+
+  // uint32 ublock[BLOCK_SIZE_2D] = {
+  //   1992158, 1736739, 1736739, 462686,
+  //   28905, 28910, 28371, 28371,
+  //   116490, 116490, 288, 114420,
+  //   114423, 1175, 1175, 5095
+  // };
+
+  uint32 ublock[BLOCK_SIZE_2D] = {
+    2002158, 6736799, 2736739, 462686,
+    28905, 28910, 90992, 28371,
+    116400, 116490, 388, 514420,
+    114423, 1375, 1195, 6066
+  };
+
+  zfp_output *output = alloc_zfp_output();
+  double tolerance = 1e-3;
+  double max_error = set_zfp_output_accuracy(output, tolerance);
+  printf("Maximum error:\t\t%f\n", max_error);
+
+  uint maxprec = get_precision(emax, output->maxprec, output->minexp, 2);
+  printf("Max precision:\t\t%u\n", maxprec);
+  bool exceeded = exceeded_maxbits(output->maxbits, maxprec, BLOCK_SIZE_2D);
+  printf("Maxbits:\t\t%u\n", output->maxbits);
+  printf("Exceeded maxbits:\t%s\n", exceeded ? "true" : "false");
+  EXPECT_FALSE(exceeded);
+
+
+  //* Only test encoding without bit limits.
+  uint encoded_bits = embedded_encoding(s, ublock, maxprec, BLOCK_SIZE_2D);
+  printf("Encoded bits:\t\t%u\n\n", encoded_bits);
+
+  uint64 expected[] = {
+    // 3, 0, 1008806316530991104, 1152954490257673728, 3542070
+    // 3, 0, 144128382282498048, 10957282151736805888, 3542582,
+    17311055420935110659, 1901733698298127, 979066
+  };
+
+  printf("stream.idx: %ld\n", s->idx);
+  printf("stream: ");
+  for (int i = 0; i < s->idx; i++) {
+    printf("%lu, ", s->begin[i]);
+  }
+  printf("\nstream.buffer: %lu\n", s->buffer);
+  printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
+
+  // EXPECT_EQ(s->begin[0], expected[0]);
+  // EXPECT_EQ(s->buffer, expected[1]);
+  // EXPECT_EQ(stream_size_bytes(s), sizeof(uint64));
+
+  stream_flush(s);
+
+  // EXPECT_EQ(s->begin[1], expected[1]);
+  // EXPECT_EQ(s->buffer, 0U);
+  // EXPECT_EQ(stream_size_bytes(s), 2*sizeof(uint64));
 
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");

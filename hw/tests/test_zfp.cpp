@@ -18,7 +18,7 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  size_t dim = 4;
+  size_t dim = 100;
   size_t in_dim = 2;
   size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);

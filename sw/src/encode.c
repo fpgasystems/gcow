@@ -348,14 +348,13 @@ uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
   uint64 offset = stream_woffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
-  uint i, k, n;
+  uint k, n;
 
   /* encode one bit plane at a time from MSB to LSB */
-  for (k = intprec, n = 0; k > kmin;) {
-    k--;
+  for (k = intprec, n = 0; k-- > kmin;) {
     //^ Step 1: extract bit plane #k to x.
     uint64 x = 0;
-    for (i = 0; i < block_size; i++) {
+    for (uint i = 0; i < block_size; i++) {
       x += (uint64)((ublock[i] >> k) & 1u) << i;
     }
 
@@ -368,7 +367,7 @@ uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
         //^ Negative group test (x == 0) -> Done with all bit planes.
         break;
       }
-      for (; n < block_size - 1; n++) {
+      for (; n < block_size - 1; x >>= 1, n++) {
         //* Continue writing 0's until a 1 bit is found.
         //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
         if (stream_write_bit(s, x & 1u)) {
@@ -376,9 +375,25 @@ uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
           //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
           break;
         }
-        x >>= 1;
       }
     }
+
+    //* Alternative implmentation of the above:
+    // while (n < block_size) {
+    //   if (!stream_write_bit(s, !!x)) {
+    //     //^ Negative group test (x == 0) -> Done with all bit planes.
+    //     break;
+    //   }
+    //   while (n < block_size - 1) {
+    //     if (stream_write_bit(s, x & 1u)) {
+    //       break;
+    //     }
+    //     x >>= 1;
+    //     n++;
+    //   }
+    //   x >>= 1;
+    //   n++;
+    // }
   }
 
   // *out_data = s;

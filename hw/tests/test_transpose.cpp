@@ -24,18 +24,11 @@ int main(int argc, char** argv)
   //   114423, 1175, 1175, 5095
   // };
 
-  // std::vector<uint32, aligned_allocator<uint32>> ublock = {
-  //   2002158, 6736799, 2736739, 462686,
-  //   28905, 28910, 90992, 28371,
-  //   116400, 116490, 388, 514420,
-  //   114423, 1375, 1195, 6066
-  // };
-
   std::vector<uint32, aligned_allocator<uint32>> ublock = {
-    4294967236, 329467215, 4294967214, 1104967293,
-    1294967212, 4294967281, 4294967240, 3294967209,
-    4294967208, 4294967277, 22967206, 4294967205,
-    1294967234, 494967203, 4294967202, 294967251
+    2002158, 6736799, 2736739, 462686,
+    28905, 28910, 90992, 28371,
+    116400, 116490, 388, 514420,
+    114423, 1375, 1195, 6066
   };
 
   std::cout << "input unsigned ints:\t" << ublock.size() << std::endl;
@@ -65,7 +58,7 @@ int main(int argc, char** argv)
   devices.resize(1);
   cl::Program program(context, devices, gcow_bins);
   std::cout << "\nCreated program from the bitstream\n";
-  cl::Kernel kernel(program, "bitplane");
+  cl::Kernel kernel(program, "transpose");
   std::cout << "Created a kernel using the loaded program object\n";
 
   // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr
@@ -178,15 +171,10 @@ int main(int argc, char** argv)
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
 
-  // ptrdiff_t stream_idx_host = 2;
-  // uint64 expected[stream_idx_host] = {
-  //   7455816852505100291UL,
-  //   432UL
-  // };
-  ptrdiff_t stream_idx_host = 1;
+  ptrdiff_t stream_idx_host = 5;
   uint64 expected[stream_idx_host] = {
-    // 1687329373683715UL,
-    44828585475UL
+    // 3, 0, 1008806316530991104, 1152954490257673728, 3542070
+    3, 0, 144128382282498048, 10957282151736805888, 3542582,
   };
 
   // uint64 expected[stream_idx_host] = {
@@ -194,16 +182,11 @@ int main(int argc, char** argv)
   //   113368486UL
   // };
 
-  // uint64 expected[stream_idx_host] = {
-  //   7455816852505100291UL,
-  //   433UL
-  // };
-
   //* Validate against software implementation.
   std::cout << "Exceeded: " << exceeded << std::endl;
   std::cout << "Max error: " << max_error << std::endl;
   std::cout << "Max prec: " << maxprec << std::endl;
-  std::cout << "Encoded bits: " << encoded_bits << std::endl;
+  // std::cout << "Encoded bits: " << encoded_bits << std::endl;
   std::cout << "Stream idx: " << stream_idx << std::endl;
   // std::cout << "Output elements: " << encoded_bits/sizeof(stream_word) << std::endl;
 

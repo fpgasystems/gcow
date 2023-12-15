@@ -2,34 +2,29 @@
 #include "stream.hpp"
 
 extern "C" {
-  uint encode_bitplanes(stream &s, volatile const uint32 *const ublock,
-                        uint maxprec, uint block_size)
+  uint embedded_encoding(stream &s, volatile const uint32 *const ublock,
+                         uint maxprec, uint block_size)
   {
-    /* make a copy of bit stream to avoid aliasing */
-    //! CHANGE: No copy is made here!
-    // stream s = *out_data;
+    uint total = 17;
+    uint64 inputs[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 9, 15, 6920, 6918};
+    // uint64 inputs[] = {
+    //   2002158, 6736799, 2736739, 462686,
+    //   28905, 28910, 90992, 28371,
+    //   116400, 116490, 388, 514420,
+    //   114423, 1375, 1195, 6066,
+    //   1992158, 1736739, 1736739, 462686,
+    //   28905, 28910, 28371, 28371,
+    //   116490, 116490, 288, 114420,
+    //   114423, 1175, 1175, 5095
+    // };
     uint64 offset = stream_woffset(s);
-    uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
-    //* `kmin` is the cutoff of the least significant bit plane to encode.
-    //* E.g., if `intprec` is 32 and `maxprec` is 17, only [31:16] bit planes are encoded.
-    uint kmin = intprec > maxprec ? intprec - maxprec : 0;
-    uint k = intprec;
     uint n = 0;
+    uint i = 0;
 
     /* encode one bit plane at a time from MSB to LSB */
-LOOP_ENCODE_ALL_BITPLANES:
-    for (k = intprec, n = 0; k-- > kmin;) {
-      //^ Step 1: extract bit plane #k of every block to x.
-      stream_word x(0);
-LOOP_ENCODE_ALL_BITPLANES_TRANSPOSE:
-      for (uint i = 0; i < block_size; i++) {
-        // x += (uint64)((ublock[i] >> k) & 1u) << i;
-        x += ((stream_word(ublock[i]) >> k) & stream_word(1)) << i;
-      }
-
-      // //^ Step 2: encode first n bits of bit plane.
-      // x = stream_write_bits(s, x, n);
-
+    while (i < total) {
+      uint64 x = inputs[i++];
+      x = stream_write_bits(s, x, n);
       //^ Step 3: unary run-length encode remainder of bit plane.
 LOOP_ENCODE_ALL_BITPLANES_EMBED:
       for (; n < block_size; x >>= 1, n++) {
@@ -49,13 +44,14 @@ LOOP_ENCODE_ALL_BITPLANES_EMBED:
         }
       }
     }
+
     // *out_data = s;
     //* Returns the number of bits written.
     return (uint)(stream_woffset(s) - offset);
   }
 
 
-  void bitplane(
+  void embed(
     const uint32 *ublock, double *max_error, uint *maxprec, bool *exceeded,
     stream_word *out_data, uint *encoded_bits, ptrdiff_t *stream_idx)
   {
@@ -81,7 +77,7 @@ LOOP_ENCODE_ALL_BITPLANES_EMBED:
     //* Start encoding.
     *maxprec = get_precision(emax, output.maxprec, output.minexp, 2);
     *exceeded = exceeded_maxbits(output.maxbits, *maxprec, BLOCK_SIZE_2D);
-    *encoded_bits = encode_bitplanes(s, ublock, *maxprec, BLOCK_SIZE_2D);
+    *encoded_bits = embedded_encoding(s, ublock, *maxprec, BLOCK_SIZE_2D);
     //* Close the stream.
     stream_flush(s);
     *stream_idx = s.idx;
