@@ -19,7 +19,7 @@ int main(int argc, char** argv)
   std::cout << std::endl << "--------------------------" << std::endl;
 
   //* Initialize input.
-  size_t dim = 8;
+  size_t dim = 7654;
   size_t in_dim = 2;
   size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);
@@ -81,6 +81,7 @@ int main(int argc, char** argv)
   // ensure that user buffer is used when user create Buffer/Mem object with CL_MEM_USE_HOST_PTR
 
   //* Allocate buffers in Global Memory
+  //& Read-only buffers for inputs.
   OCL_CHECK(err,
             cl::Buffer buffer_in_shape(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
@@ -95,11 +96,12 @@ int main(int argc, char** argv)
               &err));
   OCL_CHECK(err,
             cl::Buffer buffer_out_gradients(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
               max_output_bytes,
               out_zfp_gradients.data(),
               &err));
 
+  //& Read-write/write-only buffers for outputs.
   size_t out_bytes[] = {0};
   OCL_CHECK(err,
             cl::Buffer buffer_out_bytes(
@@ -144,7 +146,7 @@ int main(int argc, char** argv)
     buffer_out_gradients,
     buffer_out_bytes,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
-  q.finish();
+  OCL_CHECK(err, err = q.finish());
 
   auto end = std::chrono::high_resolution_clock::now();
   double duration = (std::chrono::duration_cast<std::chrono::milliseconds>
@@ -177,6 +179,7 @@ int main(int argc, char** argv)
   } else {
     fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
     fclose(fp);
+    std::cout << "Dumped compressed data to " << gcowf.str() << std::endl;
   }
 
   std::stringstream diffcmd;

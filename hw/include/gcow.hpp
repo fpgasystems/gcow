@@ -12,7 +12,7 @@ extern "C" {
     const size_t in_dim,
     const size_t *in_shape,
     const float *in_fp_gradients,
-    volatile stream_word *out_zfp_gradients,
+    stream_word *out_zfp_gradients,
     size_t *out_bytes);
 
 }

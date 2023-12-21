@@ -1,5 +1,6 @@
 *_host
 *_test
+bitstreams/
 src/hls_output
 hls_output
 *csv

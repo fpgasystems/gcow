@@ -11,7 +11,7 @@ void gcow(
   const size_t in_dim,
   const size_t *in_shape,
   const float *in_fp_gradients,
-  volatile stream_word *out_zfp_gradients,
+  stream_word *out_zfp_gradients,
   size_t *out_bytes)
 {
 //* Seperate input and output to the different memory banks for now.
@@ -19,6 +19,13 @@ void gcow(
 #pragma HLS INTERFACE mode=m_axi port=in_fp_gradients offset=slave bundle=gmem0 // max_read_burst_length=256
 #pragma HLS INTERFACE mode=m_axi port=out_zfp_gradients offset=slave bundle=gmem1 // max_write_burst_length=256
 #pragma HLS INTERFACE mode=m_axi port=out_bytes offset=slave bundle=gmem1
+// #pragma HLS INTERFACE s_axilite port=in_dim bundle=control
+// #pragma HLS INTERFACE s_axilite port=in_shape bundle=control
+// #pragma HLS INTERFACE s_axilite port=in_fp_gradients bundle=control
+// #pragma HLS INTERFACE s_axilite port=out_zfp_gradients bundle=control
+// #pragma HLS INTERFACE s_axilite port=out_bytes bundle=control
+// #pragma HLS INTERFACE s_axilite port=return bundle=control
+
 //& AXILite somehow doesn't work with Vitis HLS for transfering scalars.
 // #pragma HLS INTERFACE mode=s_axilite port=out_bytes
 
