@@ -1,8 +1,7 @@
 *_host
 *_test
 bitstreams/
-src/hls_output
-hls_output
+hls-outputs/
 *csv
 xclbin
 ./xclbin

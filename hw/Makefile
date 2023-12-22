@@ -78,7 +78,7 @@ XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
 EMCONFIG_FILE := ./emconfig.json
 
-VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --config configs/$(KERNEL)_config.cfg --save-temps 
+VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --config configs/$(KERNEL)_config.cfg --save-temps --report_level estimate
 CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(XILINX_VITIS_HLS)/include -I$(INCLUDE_DIR)
 LFLAGS := -L$(XILINX_XRT)/lib -lxilinxopencl -pthread -lrt
 NUMDEVICES := 1

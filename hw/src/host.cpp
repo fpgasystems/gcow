@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cassert>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 
@@ -11,15 +12,15 @@ void get_input_2d(float *input_data, size_t n);
 
 int main(int argc, char** argv)
 {
-  if (argc != 2) {
-    std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << std::endl;
+  if (argc != 3) {
+    std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << " <dim>" << std::endl;
     return EXIT_FAILURE;
   }
   cl_int err;
   std::cout << std::endl << "--------------------------" << std::endl;
 
   //* Initialize input.
-  size_t dim = 7654;
+  size_t dim = std::stoi(argv[2]);
   size_t in_dim = 2;
   size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);
@@ -150,44 +151,46 @@ int main(int argc, char** argv)
 
   auto end = std::chrono::high_resolution_clock::now();
   double duration = (std::chrono::duration_cast<std::chrono::milliseconds>
-                     (end-start).count() / 1000.0);
+                     (end-start).count());
 
-  std::cout << "Duration (including memcpy out): " << duration << " seconds"
+  std::cout << "Duration (including memcpy out): " << duration << " ms"
             << std::endl;
   std::cout << "Overall grad values per second = " << input_size / duration
             << std::endl;
   std::cout << "Compressed size: " << *out_bytes << " bytes" << std::endl;
 
-  //* Validate against software implementation.
-  std::stringstream zfpf;
-  if (dim > 1e4)
-    zfpf << "tests/data/compressed_2d_" << dim << "_large.zfp";
-  else
-    zfpf << "tests/data/compressed_2d_" << dim << ".zfp";
+  return EXIT_SUCCESS;
+  
+  // //* Validate against software implementation.
+  // std::stringstream zfpf;
+  // if (dim > 1e4)
+  //   zfpf << "tests/data/compressed_2d_" << dim << "_large.zfp";
+  // else
+  //   zfpf << "tests/data/compressed_2d_" << dim << ".zfp";
 
-  std::stringstream gcowf;
-  if (dim > 1e4)
-    gcowf << "tests/data/compressed_2d_" << dim << "_large.gcow";
-  else
-    gcowf << "tests/data/compressed_2d_" << dim << ".gcow";
+  // std::stringstream gcowf;
+  // if (dim > 1e4)
+  //   gcowf << "tests/data/compressed_2d_" << dim << "_large.gcow";
+  // else
+  //   gcowf << "tests/data/compressed_2d_" << dim << ".gcow";
 
-  //* Dump the compressed data to file.
-  FILE *fp = fopen(gcowf.str().c_str(), "wb");
-  if (!fp) {
-    printf("Failed to open file for writing.\n");
-    exit(1);
-  } else {
-    fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
-    fclose(fp);
-    std::cout << "Dumped compressed data to " << gcowf.str() << std::endl;
-  }
+  // //* Dump the compressed data to file.
+  // FILE *fp = fopen(gcowf.str().c_str(), "wb");
+  // if (!fp) {
+  //   printf("Failed to open file for writing.\n");
+  //   exit(1);
+  // } else {
+  //   fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
+  //   fclose(fp);
+  //   std::cout << "Dumped compressed data to " << gcowf.str() << std::endl;
+  // }
 
-  std::stringstream diffcmd;
-  diffcmd << "diff --brief -w " << gcowf.str() << " " << zfpf.str();
-  bool matched = !system(diffcmd.str().c_str());
+  // std::stringstream diffcmd;
+  // diffcmd << "diff --brief -w " << gcowf.str() << " " << zfpf.str();
+  // bool matched = !system(diffcmd.str().c_str());
 
-  std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
-  return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
+  // std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
+  // return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 

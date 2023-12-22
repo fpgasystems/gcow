@@ -22,7 +22,7 @@ typedef int64_t int64;
 typedef uint64_t uint64;
 
 /* Use the maximum word size by default for IO highest speed (irrespective of the input data type since it's just a stream of bits) */
-typedef ap_uint<64> stream_word;
+typedef ap_uint<512> stream_word;
 /* Maximum number of bits in a buffered stream word */
 #define SWORD_BITS ((size_t)(sizeof(stream_word) * CHAR_BIT))
 
