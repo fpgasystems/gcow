@@ -39,8 +39,12 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   //* Compress array one block of 4x4 values at a time
 LOOP_ENCODE_BLOCKS_2D:
   for (size_t y = 0; y < ny; y += 4) {
+#pragma HLS UNROLL factor=16
+//^ Unroll factor is set to 64 (burst length / 16).
+
 LOOP_ENCODE_BLOCKS_2D_INNER:
     for (size_t x = 0; x < nx; x += 4) {
+#pragma HLS PIPELINE
       //TODO: Use hls stream for reading blocks.
       volatile const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       float fblock[BLOCK_SIZE_2D];

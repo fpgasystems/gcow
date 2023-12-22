@@ -16,7 +16,7 @@ void gcow(
 {
 //* Seperate input and output to the different memory banks for now.
 #pragma HLS INTERFACE mode=m_axi port=in_shape offset=slave bundle=gmem0
-#pragma HLS INTERFACE mode=m_axi port=in_fp_gradients offset=slave bundle=gmem0 // max_read_burst_length=256
+#pragma HLS INTERFACE mode=m_axi port=in_fp_gradients offset=slave bundle=gmem0 max_read_burst_length=256
 #pragma HLS INTERFACE mode=m_axi port=out_zfp_gradients offset=slave bundle=gmem1 // max_write_burst_length=256
 #pragma HLS INTERFACE mode=m_axi port=out_bytes offset=slave bundle=gmem1
 // #pragma HLS INTERFACE s_axilite port=in_dim bundle=control

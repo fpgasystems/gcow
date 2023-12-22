@@ -40,6 +40,8 @@
 */
 void pad_partial_block(volatile float *block, size_t n, ptrdiff_t s)
 {
+#pragma HLS inline
+
   switch (n) {
     case 0:
       block[0 * s] = 0;
@@ -66,6 +68,7 @@ LOOP_GATHER_2D_BLOCK:
   for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
 LOOP_GATHER_2D_BLOCK_INNER:
     for (size_t x = 0; x < 4; x++, raw += sx) {
+#pragma HLS PIPELINE
       *block++ = *raw;
     }
 }
@@ -77,8 +80,10 @@ void gather_partial_2d_block(volatile float *block, volatile const float *raw,
   size_t x, y;
 LOOP_GATHER_PARTIAL_2D_BLOCK:
   for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
+
 LOOP_GATHER_PARTIAL_2D_BLOCK_INNER:
     for (x = 0; x < nx; x++, raw += sx) {
+#pragma HLS PIPELINE
       block[4 * y + x] = *raw;
     }
     //* Pad horizontally to 4.
@@ -129,6 +134,8 @@ LOOP_GATHER_PARTIAL_2D_BLOCK_INNER:
 
 int get_scaler_exponent(float x)
 {
+#pragma HLS inline
+
   //* In case x==0.
   int e = -EBIAS;
   if (x > 0) {
@@ -143,6 +150,8 @@ int get_scaler_exponent(float x)
 
 int get_block_exponent(volatile const float *block, uint n)
 {
+#pragma HLS inline
+
   float max = 0;
   //* Find the maximum floating point and return its exponent as the block exponent.
   do {
@@ -163,6 +172,8 @@ int get_block_exponent(volatile const float *block, uint n)
 */
 float quantize_scaler(float x, int e)
 {
+#pragma HLS inline
+
   //* `((int)(8 * sizeof(float)) - 2) - e` calculates the difference in exponents to
   //* achieve the desired quantization relative to e.
   return LDEXP(x, ((int)(CHAR_BIT * sizeof(float)) - 2) - e);
@@ -180,6 +191,8 @@ float quantize_scaler(float x, int e)
 void fwd_cast_block(volatile int32 *iblock, volatile const float *fblock,
                     uint n, int emax)
 {
+#pragma HLS inline
+
   //* Compute power-of-two scale factor for all floats in the block
   //* relative to emax of the block.
   float scale = quantize_scaler(1.0f, emax);
@@ -191,6 +204,8 @@ void fwd_cast_block(volatile int32 *iblock, volatile const float *fblock,
 
 void fwd_lift_vector(volatile int32 *p, ptrdiff_t s)
 {
+#pragma HLS inline
+
   //* Gather 4-vector [x y z w] from p.
   int32 x, y, z, w;
   x = *p;
@@ -253,6 +268,8 @@ void fwd_lift_vector(volatile int32 *p, ptrdiff_t s)
 
 void fwd_decorrelate_2d_block(volatile int32 *iblock)
 {
+#pragma HLS inline
+
   uint x, y;
   /* transform along x */
 LOOP_FWD_DECORRELATE_2D_BLOCK_X:
@@ -267,6 +284,8 @@ LOOP_FWD_DECORRELATE_2D_BLOCK_Y:
 /* Map two's complement signed integer to negabinary unsigned integer */
 uint32 twoscomplement_to_negabinary(int32 x)
 {
+#pragma HLS inline
+
   return ((uint32)x + NBMASK) ^ NBMASK;
 }
 
@@ -274,6 +293,9 @@ uint32 twoscomplement_to_negabinary(int32 x)
 void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32 *iblock,
                           const uchar* perm, uint n)
 {
+#pragma HLS inline
+
+  //TODO: Storing perm locally.
   do
     *ublock++ = twoscomplement_to_negabinary(iblock[*perm++]);
   while (n--);
@@ -284,6 +306,8 @@ void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32 *iblock,
 uint encode_partial_bitplanes(stream &s, volatile const uint32 *const ublock,
                               uint maxbits, uint maxprec, uint block_size)
 {
+#pragma HLS STREAM variable=ublock depth=8 type=fifo
+  
   /* Make a copy of bit stream to avoid aliasing */
   //! CHANGE: No copy is made here!
   // stream s(out_data);
@@ -350,6 +374,8 @@ LOOP_ENCODE_PARTIAL_BITPLANES_EMBED:
 uint encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
                           uint maxprec, uint block_size)
 {
+#pragma HLS STREAM variable=ublock depth=8 type=fifo
+  
   uint64 offset = stream_woffset(s);
   uint intprec = (uint)(CHAR_BIT * sizeof(uint32));
   //* `kmin` is the cutoff of the least significant bit plane to encode.
@@ -400,6 +426,8 @@ LOOP_ENCODE_ALL_BITPLANES_EMBED_INNER:
 uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
                    uint maxprec, volatile int32 *iblock, size_t dim)
 {
+#pragma HLS STREAM variable=iblock depth=8 type=fifo
+  
   size_t block_size = BLOCK_SIZE(dim);
   uint32 ublock[block_size];
 
@@ -445,6 +473,8 @@ uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
 uint encode_fblock(zfp_output &output, volatile const float *fblock,
                    size_t dim)
 {
+#pragma HLS STREAM variable=fblock depth=8 type=fifo
+
   uint bits = 1;
   size_t block_size = BLOCK_SIZE(dim);
 
@@ -482,6 +512,6 @@ uint encode_fblock(zfp_output &output, volatile const float *fblock,
       bits = output.minbits;
     }
   }
-  //* Return the number of encoded bits.
+  // //* Return the number of encoded bits.
   return bits;
 }
