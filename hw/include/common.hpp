@@ -7,6 +7,7 @@
 #include <math.h>
 // #include <ap_int.h>
 #include <vector>
+#include <map>
 
 #define DIM_MAX 4 /* maximum number of array dimensions */
 
@@ -53,7 +54,7 @@
 typedef unsigned int uint;
 
 /* Forward definition */
-typedef struct stream stream;
+// typedef struct stream stream;
 /* True if max compressed size exceeds maxbits */
 int exceeded_maxbits(uint maxbits, uint maxprec, uint size);
 /**

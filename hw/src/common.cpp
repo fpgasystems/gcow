@@ -32,6 +32,8 @@ uint get_input_dimension(const zfp_input &input)
 
 size_t get_input_num_blocks(const zfp_input &input)
 {
+#pragma HLS INLINE
+
   size_t bx = (input.nx + 3) / 4;
   size_t by = (input.ny + 3) / 4;
   size_t bz = (input.nz + 3) / 4;
@@ -116,12 +118,14 @@ size_t get_max_output_bytes(const zfp_output &output, const zfp_input &input)
 
 uint get_precision(int maxexp, uint maxprec, int minexp, int dim)
 {
+  #pragma HLS INLINE
   return MIN(maxprec, (uint)MAX(0, maxexp - minexp + 2 * dim + 2));
 }
 
 /* True if max compressed size exceeds maxbits */
 int exceeded_maxbits(uint maxbits, uint maxprec, uint size)
 {
+  #pragma HLS INLINE
   //* Compare the total bitplanes to the maximum number of bits per block.
   return (maxprec + 1) * size - 1 > maxbits;
 }

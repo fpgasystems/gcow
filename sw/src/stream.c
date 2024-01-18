@@ -70,8 +70,9 @@ uint64 stream_write_bits(stream* s, uint64 value, size_t n)
   /* is buffer full? */
   if (s->buffered_bits >= SWORD_BITS) {
     /* 1 <= n <= 64; decrement n to ensure valid right shifts below */
-    value >>= 1;
-    n--;
+    //? Why decrement n and shift value? (removed for now)
+    // value >>= 1;
+    // n--;
     /* assert: 0 <= n < 64; wsize <= s->buffered_bits <= wsize + n */
     do {
       /* output wsize bits while buffer is full */

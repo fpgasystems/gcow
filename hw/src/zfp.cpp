@@ -4,6 +4,7 @@
 #include "stream.hpp"
 #include "encode.hpp"
 #include "zfp.hpp"
+#include "io.hpp"
 
 
 size_t zfp_compress(zfp_output &output, const zfp_input &input)
@@ -29,32 +30,100 @@ size_t zfp_compress(zfp_output &output, const zfp_input &input)
 
 void zfp_compress_2d(zfp_output &output, const zfp_input &input)
 {
+  #pragma HLS DATAFLOW
+
+  // size_t MAX_NUM_BLOCKS_2D = 200000000; //* 200M blocks (3B parameters)
+  // hls::stream<write_request_t> write_queues[MAX_NUM_BLOCKS_2D];
+  size_t total_blocks = get_input_num_blocks(input);
+  hls::stream<write_request_t> write_queue;
+  hls::stream<ap_uint<1>> write_fsm_finished;
+
+  //^ Step 0: Launch the write FSMs.
+  drain_write_queue_fsm(output, total_blocks, write_queue, write_fsm_finished);
+  // drain_write_queues_fsm(output, MAX_NUM_BLOCKS_2D, write_queues);
+  // hls::stream<write_request_t, 1024*4> write_queue; /* write queue for all blocks */
+  // #pragma HLS STREAM variable=write_queue type=pipo 
+  // hls::stream<write_request_t, 1024*4> write_requests; 
+  // hls::stream<write_request_t, 1024*4> write_backlog; 
+  // pull_write_requests_fsm(output, write_requests, write_backlog);
+  // fill_write_requests_fsm(write_queue, write_requests, write_backlog);
+
+  //^ Step 1: Partition input data into 4x4 blocks.
+  hls::stream<fblock_2d_t, 512> fblock;
+  chunk_blocks_2d(fblock, input);
+
+  //^ Step 2: Block floating-point transform.
   uint dim = 2;
-  volatile const float* data = input.data;
-  size_t nx = input.nx;
-  size_t ny = input.ny;
-  ptrdiff_t sx = input.sx ? input.sx : 1;
-  ptrdiff_t sy = input.sy ? input.sy : (ptrdiff_t)nx;
+  hls::stream<int, 32> emax;
+  hls::stream<uint, 32> maxprec;
+  hls::stream<fblock_2d_t, 512> fblock_relay;
+  get_block_exponent(total_blocks, fblock, output, emax, maxprec, fblock_relay);
 
-  //* Compress array one block of 4x4 values at a time
-LOOP_ENCODE_BLOCKS_2D:
-  for (size_t y = 0; y < ny; y += 4) {
-#pragma HLS UNROLL factor=16
-//^ Unroll factor is set to 64 (burst length / 16).
+  steps_loop: for (int block_id = 0; block_id < total_blocks; block_id++) {
+    //* Blocking reads.
+    int e = emax.read();
+    uint prec = maxprec.read();
+    
+    uint bits = 1;
+    uint minbits = output.minbits;
+    //* Encode block only if biased exponent is nonzero
+    if (e) {
+      //* Encode block exponent
+      bits += EBITS;
+      // uint64 tmp;
+      // stream_write_bits(output.data, (2 * e + 1), bits, &tmp);
+      //TODO: Parallel I/O and compute.
+      write_queue.write(
+        write_request_t(block_id, bits, (uint64)(2 * e + 1), false));
 
-LOOP_ENCODE_BLOCKS_2D_INNER:
-    for (size_t x = 0; x < nx; x += 4) {
-#pragma HLS PIPELINE
-      //TODO: Use hls stream for reading blocks.
-      volatile const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
-      float fblock[BLOCK_SIZE_2D];
+      //^ Step 3: Cast floats to integers.
+      hls::stream<iblock_2d_t, 512> iblock;
+      fwd_float2int_2d(fblock_relay, e, iblock);
 
-      if (nx - x < 4 || ny - y < 4) {
-        gather_partial_2d_block(fblock, raw, MIN(nx - x, 4u), MIN(ny - y, 4u), sx, sy);
-      } else {
-        gather_2d_block(fblock, raw, sx, sy);
-      }
-      encode_fblock(output, fblock, dim);
+      //^ Step 4: Perform forward decorrelation transform.
+      hls::stream<iblock_2d_t, 512> iblock_relay;
+      fwd_decorrelate_2d(iblock, iblock_relay);
+
+      //^ Step 5: Perform forward block reordering transform and convert to unsigned integers.
+      hls::stream<ublock_2d_t, 512> ublock;
+      fwd_reorder_int2uint_2d(iblock_relay, ublock);
+
+      // ^ Step 6: Bit plane encoding.
+      hls::stream<uint, 32> encoded_bits;
+      minbits = output.minbits - MIN(bits, output.minbits);
+      encode_bitplanes_2d(
+        ublock, minbits, output.maxbits - bits, prec, write_queue, encoded_bits);
+
+      // bits += encoded_bits.read();
+      //& Temporary ///////////////////////////////
+      // ublock.read();
+      //& Temporary ///////////////////////////////
+    } 
+    else {
+      /* write single zero-bit to indicate that all values are zero */
+      //* Compress a block of all zeros and add padding if it's fixed-rate.
+      write_queue.write(
+        write_request_t(block_id, 1, (uint64)0, true /* last bit */));
+      // stream_write_bit(output.data, 0);
+    }
+
+    //* Padding to the minimum number of bits required.
+    if (bits < minbits) {
+      stream_pad(output.data, minbits - bits);
+      bits = minbits;
     }
   }
+  //* Blocking until the write FSM finish.
+  write_fsm_finished.read();
+
+
+  //& Temporary ///////////////////////////////
+  // for (int k = 0; k < total_blocks; k++) {
+  //   int e = emax_relay.read();
+  // }
+  // iblock.read();
+  // for (int k = 0; k < total_blocks*BLOCK_SIZE_2D; k++) {
+  //   int32 x = integer.read();
+  // }
+  //& Temporary ///////////////////////////////
 }

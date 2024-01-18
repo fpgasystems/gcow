@@ -1,8 +1,20 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
+//* Enablement for axis signals
+#define AXIS_ENABLE_DATA 0b00000001
+#define AXIS_ENABLE_DEST 0b00000010
+#define AXIS_ENABLE_ID   0b00000100
+#define AXIS_ENABLE_KEEP 0b00001000
+#define AXIS_ENABLE_LAST 0b00010000
+#define AXIS_ENABLE_STRB 0b00100000
+#define AXIS_ENABLE_USER 0b01000000
+// #define MAX_NUM_BLOCKS_2D 2
+
 #include <ap_int.h>
 #include <stdarg.h>
+#include <hls_stream.h>
+#include "ap_axi_sdata.h"
 
 #include "common.hpp"
 
@@ -21,24 +33,59 @@ typedef uint32_t uint32;
 typedef int64_t int64;
 typedef uint64_t uint64;
 
+typedef ap_axis<32, 0, 0, 0> sdata;
+typedef ap_axiu<32, 0, 0, 0> udata;
+
+//* Data block (a parallel unit)
+template <typename T, size_t N>
+struct block {
+  size_t id;
+  T data[N];
+};
+
+using fblock_2d_t = block<float, BLOCK_SIZE_2D>;
+using iblock_2d_t = block<int32, BLOCK_SIZE_2D>;
+using ublock_2d_t = block<uint32, BLOCK_SIZE_2D>;
+
+//* Request to write `nbits` bits of `value` for encoding block `block_id`.
+struct write_request_t {
+  size_t block_id;
+  // size_t index; // order of the request in the block
+  size_t nbits; // number of bits to write/read
+  uint64 value; // value to write/read
+  //TODO: Change to ap_uint<1>
+  bool last;   // last request of the block
+  //^ 17 bytes
+
+  write_request_t(void)
+    : block_id(0), nbits(0), value(0), last(false)
+  {}
+
+  write_request_t(size_t block_id, size_t nbits, uint64 value, bool last)
+    : block_id(block_id), nbits(nbits), value(value), last(last)
+  {}
+};
+
 /* Use the maximum word size by default for IO highest speed (irrespective of the input data type since it's just a stream of bits) */
-typedef ap_uint<512> stream_word;
+// typedef ap_uint<512> stream_word;
+typedef uint64 stream_word;
 /* Maximum number of bits in a buffered stream word */
 #define SWORD_BITS ((size_t)(sizeof(stream_word) * CHAR_BIT))
 
 struct stream {
   size_t buffered_bits; /* number of buffered bits (0 <= buffered_bits < SWORD_BITS) */
+  size_t block_id;      /* the id of the block currently being operated on */
   stream_word buffer;   /* incoming/outgoing bits (buffer < 2^buffered_bits) */
   volatile stream_word *begin;   /* pointer to the beginning of the output data */
   ptrdiff_t idx;     /* offset to next stream_word to be read/written */
   ptrdiff_t end;     /* offset to the end of stream (not enforced) */
 
   stream(void)
-    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), idx(0), end(0)
+    : buffered_bits(0), block_id(0), buffer(stream_word(0)), begin(nullptr), idx(0), end(0)
   {}
 
   stream(volatile stream_word *output_data, size_t bytes)
-    : buffered_bits(0), buffer(stream_word(0)), begin(nullptr), idx(0), end(0)
+    : buffered_bits(0), block_id(0), buffer(stream_word(0)), begin(nullptr), idx(0), end(0)
   {
     this->begin = output_data;
     this->end = bytes / sizeof(stream_word);
@@ -66,7 +113,6 @@ struct stream {
     return *this;
   }
 };
-typedef struct stream stream;
 
 /* ZFP Compression mode */
 typedef enum {
@@ -93,7 +139,7 @@ typedef enum {
 */
 struct zfp_input {
   data_type dtype;          /* data type of the scale values */
-  volatile const float *data;              /* pointer to the input data */
+  const float *data;              /* pointer to the input data */
   size_t nx, ny, nz, nw;    /* size of the array in the x/y/z/w dimension */
   ptrdiff_t sx, sy, sz, sw; /* stride of the array in the x/y/z/w dimension */
 
@@ -124,7 +170,6 @@ struct zfp_input {
     }
   }
 };
-typedef struct zfp_input zfp_input;
 
 struct zfp_output {
   uint minbits;       /* minimum number of bits to store per block */
@@ -139,7 +184,6 @@ struct zfp_output {
       minexp(ZFP_MIN_EXP), data(stream())
   {}
 };
-typedef struct zfp_output zfp_output;
 
 
 #define index(i, j) ((i) + 4 * (j))

@@ -38,45 +38,76 @@
 */
 int get_scaler_exponent(float x);
 
-void fwd_cast_block(volatile int32 *iblock, volatile const float *fblock,
-                    uint n, int emax);
+void fwd_cast(hls::stream<int32> &out_integer, hls::stream<float> &in_float, uint dim, int emax);
 
 void fwd_decorrelate_2d_block(volatile int32 *iblock);
 
-void fwd_reorder_int2uint(volatile uint32 *ublock, volatile const int32* iblock,
+void fwd_reorder_int2uint_block(volatile uint32 *ublock, volatile const int32* iblock,
                           const uchar* perm, uint n);
 
-/**
- * @brief Compute maximum floating-point exponent in block of n values.
- * @param block Pointer to the block.
- * @param n Number of elements in the block.
- * @return Maximum floating-point exponent.
-*/
-int get_block_exponent(volatile const float *block, uint n);
+float quantize_scaler(float x, int e);
 
-void gather_2d_block(volatile float *block, volatile const float *raw,
-                     ptrdiff_t sx,
-                     ptrdiff_t sy);
+void get_block_exponent(
+  size_t in_total_blocks,
+  hls::stream<fblock_2d_t> &in_fblock, 
+  const zfp_output &output, 
+  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_maxprec,
+  hls::stream<fblock_2d_t> &out_fblock);
 
-void gather_partial_2d_block(volatile float *block, volatile const float *raw,
-                             size_t nx, size_t ny, ptrdiff_t sx, ptrdiff_t sy);
+void fwd_float2int_2d(
+  hls::stream<fblock_2d_t> &in_fblock,
+  int emax,
+  hls::stream<iblock_2d_t> &out_iblock);
 
-/**
- * @brief Get the maximum number of bit planes to encode.
- * @param maxexp Maximum block floating-point exponent.
- * @param maxprec Maximum number of bit planes to encode.
- * @param minexp Minimum block floating-point exponent.
- * @param dim Number of dimensions.
- * @return Maximum number of bit planes to encode.
-*/
-uint get_precision(int maxexp, uint maxprec, int minexp, int dim);
+void fwd_blockfloats2ints(
+  size_t in_total_blocks,
+  hls::stream<fblock_2d_t> &in_fblock,
+  hls::stream<int> &in_emax,
+  uint minbits,
+  hls::stream<write_request_t> &write_queue,
+  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_bits,
+  hls::stream<iblock_2d_t> &out_iblock);
+
+void fwd_decorrelate_2d(
+  hls::stream<iblock_2d_t> &in_iblock,
+  hls::stream<iblock_2d_t> &out_iblock);
+
+void fwd_reorder_int2uint_2d(
+  hls::stream<iblock_2d_t> &in_iblock,
+  hls::stream<ublock_2d_t> &out_ublock);
+
+void gather_2d_block(hls::stream<float> fblock[BLOCK_SIZE_2D], const float *raw,
+                     ptrdiff_t sx, ptrdiff_t sy);
+
+void gather_partial_2d_block(hls::stream<float> fblock[BLOCK_SIZE_2D], const float *raw,
+                             size_t nx, size_t ny,
+                             ptrdiff_t sx, ptrdiff_t sy);
 
 uint encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
                           uint maxprec, uint block_size);
 
-uint encode_fblock(zfp_output &output, volatile const float *fblock,
+uint encode_fblock(zfp_output &output, hls::stream<float> fblock[BLOCK_SIZE_2D],
                    size_t dim);
 
 uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
                    uint maxprec, volatile int32 *iblock, size_t dim);
+
+void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input);
+
+// void encode_partial_bitplanes(stream &s, volatile const uint32 *const ublock,
+//                               uint maxbits, uint maxprec, uint block_size, uint *encoded_bits);
+
+// void encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
+//                           uint maxprec, uint block_size, uint *encoded_bits);
+
+void encode_bitplanes_2d(
+  hls::stream<ublock_2d_t> &in_ublock,
+  uint minbits,
+  uint maxbits,
+  uint maxprec,
+  hls::stream<write_request_t> &write_queue,
+  hls::stream<uint> &out_bits);
+
 #endif // ENCODE_HPP

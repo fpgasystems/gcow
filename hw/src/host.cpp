@@ -159,38 +159,38 @@ int main(int argc, char** argv)
             << std::endl;
   std::cout << "Compressed size: " << *out_bytes << " bytes" << std::endl;
 
-  return EXIT_SUCCESS;
+  // return EXIT_SUCCESS;
   
-  // //* Validate against software implementation.
-  // std::stringstream zfpf;
-  // if (dim > 1e4)
-  //   zfpf << "tests/data/compressed_2d_" << dim << "_large.zfp";
-  // else
-  //   zfpf << "tests/data/compressed_2d_" << dim << ".zfp";
+  //* Validate against software implementation.
+  std::stringstream zfpf;
+  if (dim > 1e4)
+    zfpf << "tests/data/compressed_2d_" << dim << "_large.zfp";
+  else
+    zfpf << "tests/data/compressed_2d_" << dim << ".zfp";
 
-  // std::stringstream gcowf;
-  // if (dim > 1e4)
-  //   gcowf << "tests/data/compressed_2d_" << dim << "_large.gcow";
-  // else
-  //   gcowf << "tests/data/compressed_2d_" << dim << ".gcow";
+  std::stringstream gcowf;
+  if (dim > 1e4)
+    gcowf << "tests/data/compressed_2d_" << dim << "_large.gcow";
+  else
+    gcowf << "tests/data/compressed_2d_" << dim << ".gcow";
 
-  // //* Dump the compressed data to file.
-  // FILE *fp = fopen(gcowf.str().c_str(), "wb");
-  // if (!fp) {
-  //   printf("Failed to open file for writing.\n");
-  //   exit(1);
-  // } else {
-  //   fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
-  //   fclose(fp);
-  //   std::cout << "Dumped compressed data to " << gcowf.str() << std::endl;
-  // }
+  //* Dump the compressed data to file.
+  FILE *fp = fopen(gcowf.str().c_str(), "wb");
+  if (!fp) {
+    printf("Failed to open file for writing.\n");
+    exit(1);
+  } else {
+    fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
+    fclose(fp);
+    std::cout << "Dumped compressed data to " << gcowf.str() << std::endl;
+  }
 
-  // std::stringstream diffcmd;
-  // diffcmd << "diff --brief -w " << gcowf.str() << " " << zfpf.str();
-  // bool matched = !system(diffcmd.str().c_str());
+  std::stringstream diffcmd;
+  diffcmd << "diff --brief -w " << gcowf.str() << " " << zfpf.str();
+  bool matched = !system(diffcmd.str().c_str());
 
-  // std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
-  // return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
+  std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
+  return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 

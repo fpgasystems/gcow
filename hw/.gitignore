@@ -1,3 +1,4 @@
+*.str
 *_host
 *_test
 bitstreams/
