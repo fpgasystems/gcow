@@ -17,12 +17,12 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  // std::vector<uint32, aligned_allocator<uint32>> ublock = {
-  //   1992158, 1736739, 1736739, 462686,
-  //   28905, 28910, 28371, 28371,
-  //   116490, 116490, 288, 114420,
-  //   114423, 1175, 1175, 5095
-  // };
+  std::vector<uint32, aligned_allocator<uint32>> ublock = {
+    1992158, 1736739, 1736739, 462686,
+    28905, 28910, 28371, 28371,
+    116490, 116490, 288, 114420,
+    114423, 1175, 1175, 5095
+  };
 
   // std::vector<uint32, aligned_allocator<uint32>> ublock = {
   //   2002158, 6736799, 2736739, 462686,
@@ -31,12 +31,33 @@ int main(int argc, char** argv)
   //   114423, 1375, 1195, 6066
   // };
 
-  std::vector<uint32, aligned_allocator<uint32>> ublock = {
-    4294967236, 329467215, 4294967214, 1104967293,
-    1294967212, 4294967281, 4294967240, 3294967209,
-    4294967208, 4294967277, 22967206, 4294967205,
-    1294967234, 494967203, 4294967202, 294967251
+  // std::vector<uint32, aligned_allocator<uint32>> ublock = {
+  //   4294967236, 329467215, 4294967214, 1104967293,
+  //   1294967212, 4294967281, 4294967240, 3294967209,
+  //   4294967208, 4294967277, 22967206, 4294967205,
+  //   1294967234, 494967203, 4294967202, 294967251
+  // };
+
+  ptrdiff_t stream_idx_host = 2;
+  uint64 expected[stream_idx_host] = {
+    7455816852505100291UL,
+    432UL
   };
+  // ptrdiff_t stream_idx_host = 1;
+  // uint64 expected[stream_idx_host] = {
+  //   // 1687329373683715UL,
+  //   44828585475UL
+  // };
+
+  // uint64 expected[stream_idx_host] = {
+  //   2318511421321904131,
+  //   113368486UL
+  // };
+
+  // uint64 expected[stream_idx_host] = {
+  //   7455816852505100291UL,
+  //   433UL
+  // };
 
   std::cout << "input unsigned ints:\t" << ublock.size() << std::endl;
 
@@ -178,27 +199,6 @@ int main(int argc, char** argv)
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
 
-  // ptrdiff_t stream_idx_host = 2;
-  // uint64 expected[stream_idx_host] = {
-  //   7455816852505100291UL,
-  //   432UL
-  // };
-  ptrdiff_t stream_idx_host = 1;
-  uint64 expected[stream_idx_host] = {
-    // 1687329373683715UL,
-    44828585475UL
-  };
-
-  // uint64 expected[stream_idx_host] = {
-  //   2318511421321904131,
-  //   113368486UL
-  // };
-
-  // uint64 expected[stream_idx_host] = {
-  //   7455816852505100291UL,
-  //   433UL
-  // };
-
   //* Validate against software implementation.
   std::cout << "Exceeded: " << exceeded << std::endl;
   std::cout << "Max error: " << max_error << std::endl;
@@ -224,6 +224,11 @@ int main(int argc, char** argv)
     } else {
       std::cout << "out_data[" << i << "] = " << out << std::endl;
     }
+  }
+
+  for (int i=0; i < stream_idx; i++) {
+    std::bitset<64> out(out_data.at(i));
+    std::cout << "out_data[" << i << "] = " << out << std::endl;
   }
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;

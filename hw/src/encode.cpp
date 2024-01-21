@@ -101,7 +101,9 @@ void get_block_exponent(
   hls::stream<uint> &out_maxprec,
   hls::stream<fblock_2d_t> &out_fblock) 
 {
-  emax_block_loop: for (; in_total_blocks--; ) {
+  //! Can't modify the input signal directly. First, read it into a buffer.
+  size_t total_blocks = in_total_blocks;
+  emax_block_loop: for (; total_blocks--; ) {
     //* Blocking read.
     fblock_2d_t fblock_buf = in_fblock.read();
     //* Immediately relay the read block to the next module.
@@ -197,7 +199,7 @@ void fwd_blockfloats2ints(
       bits = MIN(bits, minbits);
     } else {
       //* Encode single zero-bit to indicate that all values are zero
-      wrequest = {block_id, 1, 0, true /* Last bit */};
+      wrequest = {block_id, 1, 0, false};
       // if (minbits > bits) {
       //   bits = minbits;
       //   //TODO: Padding.
@@ -432,8 +434,8 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
       }
     }
   }
-  //* Write an empty request to indicate the end of the block.
-  write_queue.write( write_request_t(block_id, 0, 0, true /* last bit */) );
+  // //* Write an empty request to indicate the end of the block.
+  // write_queue.write( write_request_t(block_id, 0, 0, true /* last bit */) );
 
   //* Returns the number of bits written (constrained by `maxbits`).
   *encoded_bits = maxbits - bits;
@@ -474,6 +476,7 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
     all_bitplanes_embed_loop: for (; n < block_size; x >>= 1, n++) {
       bit = !!x;
       write_queue.write( write_request_t(block_id, 1, bit, false) );
+      bits++;
       // stream_write_bit(s, bit, &bit);
       if (!bit) {
         //^ Negative group test (x == 0) -> Done with all bit planes.
@@ -484,6 +487,7 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
         //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
         bit = x & stream_word(1);
         write_queue.write( write_request_t(block_id, 1, bit, false) );
+        bits++;
         // stream_write_bit(s, bit, &bit);
         if (bit) {
           //* After writing a 1 bit, break out for another group test
@@ -494,8 +498,8 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
       }
     }
   }
-  //* Write an empty request to indicate the end of the block.
-  write_queue.write( write_request_t(block_id, 0, 0, true /* last bit */) );
+  // //* Write an empty request to indicate the end of the block.
+  // write_queue.write( write_request_t(block_id, 0, 0, true /* last bit */) );
   
   //* Returns the number of bits written.
   *encoded_bits = bits;
@@ -510,6 +514,10 @@ void encode_bitplanes_2d(
   hls::stream<write_request_t> &write_queue,
   hls::stream<uint> &out_bits)
 {
+  // //! Temporary only for the stage test.
+  // write_queue.write(write_request_t(0, 9, (uint64)(2 * 1 + 1), false));
+  // //! ------------------------------
+
   ublock_2d_t ublock_buf = in_ublock.read();
   uint encoded_bits = 0;
   if (exceeded_maxbits(maxbits, maxprec, BLOCK_SIZE_2D)) {
@@ -521,6 +529,11 @@ void encode_bitplanes_2d(
     encode_all_bitplanes(
       ublock_buf.data, write_queue, ublock_buf.id, maxprec, BLOCK_SIZE_2D, &encoded_bits);
   }
+
+  // //! Temporary only for the stage test.
+  // write_queue.write(write_request_t(0, 0, 0, true /* last bit */));
+  // //! ------------------------------
+
   out_bits.write(encoded_bits);
 }
 

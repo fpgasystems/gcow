@@ -29,8 +29,8 @@ extern "C" {
     //* Start encoding.
     *maxprec = get_precision(e, output.maxprec, output.minexp, 2);
     *exceeded = exceeded_maxbits(output.maxbits, *maxprec, BLOCK_SIZE_2D);
-    *encoded_bits = encode_iblock(s, output.minbits, output.maxbits, *maxprec,
-                                  iblock, 2);
+    // *encoded_bits = encode_iblock(s, output.minbits, output.maxbits, *maxprec,
+                                  // iblock, 2);
     //* Close the stream.
     stream_flush(s);
     *stream_idx = s.idx;

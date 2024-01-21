@@ -8,16 +8,36 @@ size_t g_write_block_id = 0; /* block id of the current write request */
 size_t g_write_index = 0; /* index of the current write request in the block */
 
 
+void pad_bits(
+  hls::stream<uint> &in_encoded_bits, 
+  uint bits,
+  uint minbits,
+  size_t block_id,
+  hls::stream<write_request_t> &write_queue,
+  hls::stream<uint> &out_encoded_bits)
+{
+  bits += in_encoded_bits.read();
+  //* Padding to the minimum number of bits required.
+  if (bits < minbits) {
+    // stream_pad(output.data, minbits - bits);
+    write_queue.write(
+      write_request_t(block_id, minbits - bits, (uint64)0, true));
+    out_encoded_bits.write(minbits);
+  } else {
+    //* Write an empty request to signal the end of the block.
+    write_queue.write(
+      write_request_t(block_id, 0, (uint64)0, true));
+    out_encoded_bits.write(bits);
+  }
+}
+
 void drain_write_queue_fsm(
-  zfp_output &output, 
+  stream &s, 
   size_t total_blocks,
   hls::stream<write_request_t> &write_queue, 
   hls::stream<ap_uint<1>> &write_fsm_finished)
 {
   //! Assuming requests are in order.
-  //TODO: Remove outputing from the writes.
-  uint64 tmp;
-  uint temp;
   size_t block_id = 0;
   write_queue_loop: for (; block_id < total_blocks; ) {
     //* Blocking read.
@@ -27,9 +47,14 @@ void drain_write_queue_fsm(
     //   break;
     // }
     if (request_buf.nbits > 1) {
-      stream_write_bits(output.data, request_buf.value, request_buf.nbits, &tmp);
+      if (request_buf.value > 0) {
+        stream_write_bits(s, request_buf.value, request_buf.nbits);
+      } else {
+        //* Zero paddings.
+        stream_pad(s, request_buf.nbits);
+      }
     } else if (request_buf.nbits == 1) {
-      stream_write_bit(output.data, request_buf.value, &temp);
+      stream_write_bit(s, request_buf.value);
     } else {
       //* Empty request signals the end of the block, expecting the `last` flag to be set.
     }
@@ -37,7 +62,10 @@ void drain_write_queue_fsm(
       block_id++;
     }
   }
-  write_fsm_finished.write(1);
+  if (block_id == total_blocks) {
+    stream_flush(s);
+    write_fsm_finished.write(1);
+  }
 }
 
 void relay_scalers_2d(

@@ -23,7 +23,7 @@ size_t zfp_compress(zfp_output &output, const zfp_input &input)
       break;
   }
 
-  stream_flush(output.data);
+  // stream_flush(output.data);
   return stream_size_bytes(output.data);
 }
 
@@ -39,7 +39,7 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   hls::stream<ap_uint<1>> write_fsm_finished;
 
   //^ Step 0: Launch the write FSMs.
-  drain_write_queue_fsm(output, total_blocks, write_queue, write_fsm_finished);
+  drain_write_queue_fsm(output.data, total_blocks, write_queue, write_fsm_finished);
   // drain_write_queues_fsm(output, MAX_NUM_BLOCKS_2D, write_queues);
   // hls::stream<write_request_t, 1024*4> write_queue; /* write queue for all blocks */
   // #pragma HLS STREAM variable=write_queue type=pipo 
@@ -66,6 +66,7 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
     
     uint bits = 1;
     uint minbits = output.minbits;
+    hls::stream<uint, 32> encoded_bits;
     //* Encode block only if biased exponent is nonzero
     if (e) {
       //* Encode block exponent
@@ -88,32 +89,38 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
       hls::stream<ublock_2d_t, 512> ublock;
       fwd_reorder_int2uint_2d(iblock_relay, ublock);
 
-      // ^ Step 6: Bit plane encoding.
-      hls::stream<uint, 32> encoded_bits;
+      //^ Step 6: Bit plane encoding.
       minbits = output.minbits - MIN(bits, output.minbits);
       encode_bitplanes_2d(
         ublock, minbits, output.maxbits - bits, prec, write_queue, encoded_bits);
 
-      // bits += encoded_bits.read();
       //& Temporary ///////////////////////////////
+      // bits += encoded_bits.read();
       // ublock.read();
       //& Temporary ///////////////////////////////
     } 
     else {
       /* write single zero-bit to indicate that all values are zero */
       //* Compress a block of all zeros and add padding if it's fixed-rate.
-      write_queue.write(
-        write_request_t(block_id, 1, (uint64)0, true /* last bit */));
+      // write_queue.write(
+      //   write_request_t(block_id, 1, (uint64)0, true /* last bit */));
+      encoded_bits.write(0);
       // stream_write_bit(output.data, 0);
     }
 
+    hls::stream<uint, 32> encoded_bits_relay;
     //* Padding to the minimum number of bits required.
-    if (bits < minbits) {
-      stream_pad(output.data, minbits - bits);
-      bits = minbits;
-    }
+    pad_bits(encoded_bits, bits, minbits, block_id, write_queue, encoded_bits_relay);
+    //* Unused for now.
+    encoded_bits_relay.read();
+    // if (bits < minbits) {
+    //   // stream_pad(output.data, minbits - bits);
+    //   write_queue.write(
+    //     write_request_t(block_id, minbits - bits, (uint64)0, true));
+    //   bits = minbits;
+    // }
   }
-  //* Blocking until the write FSM finish.
+  //* Blocking until the write FSM finishes.
   write_fsm_finished.read();
 
 

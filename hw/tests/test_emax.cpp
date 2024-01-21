@@ -5,6 +5,7 @@
 
 #include "host.hpp"
 #include "types.hpp"
+#include "common.hpp"
 
 
 int main(int argc, char** argv)
@@ -118,7 +119,7 @@ int main(int argc, char** argv)
   std::cout << "emax: " << *emax << std::endl;
 
   //* Validate against software implementation.
-  bool matched = *emax == 1;
+  bool matched = *emax == 1 + EBIAS;
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
   return (matched ? EXIT_SUCCESS : EXIT_FAILURE);

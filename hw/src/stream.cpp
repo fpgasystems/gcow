@@ -56,7 +56,7 @@ inline uint64 stream_read_bits(stream &s, size_t n)
 }
 
 /* Buffer/write 0 <= n <= 64 low bits of value and return remaining bits */
-void stream_write_bits(stream &s, uint64 value, size_t n, uint64 *out)
+void stream_write_bits(stream &s, uint64 value, size_t n)
 {
   /* append bit stream to buffer */
   //? Should be prepending (not appending) the `value` to the buffered bits.
@@ -88,11 +88,11 @@ void stream_write_bits(stream &s, uint64 value, size_t n, uint64 *out)
   s.buffer &= (stream_word(1) << s.buffered_bits) - stream_word(1);
   /* assert: 0 <= n < 64 */
   //! Return the casted `val` (on which the previous shifting was done) instead of the original `value`.
-  *out = val >> n;
+  // *out = val >> n;
 }
 
 /* Write single bit (must be 0 or 1) */
-void stream_write_bit(stream &s, uint bit, uint *out)
+void stream_write_bit(stream &s, uint bit)
 {
 #pragma HLS INLINE
   s.buffer += stream_word(bit) << s.buffered_bits;
@@ -102,7 +102,7 @@ void stream_write_bit(stream &s, uint bit, uint *out)
     s.buffer = 0;
     s.buffered_bits = 0;
   }
-  *out = bit;
+  // *out = bit;
 }
 
 /* Append n zero-bits to stream (n >= 0) */

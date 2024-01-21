@@ -22,28 +22,28 @@ extern "C" {
     uint i = 0;
 
     /* encode one bit plane at a time from MSB to LSB */
-    while (i < total) {
-      uint64 x = inputs[i++];
-      x = stream_write_bits(s, x, n);
-      //^ Step 3: unary run-length encode remainder of bit plane.
-LOOP_ENCODE_ALL_BITPLANES_EMBED:
-      for (; n < block_size; x >>= 1, n++) {
-        if (!stream_write_bit(s, !!x)) {
-          //^ Negative group test (x == 0) -> Done with all bit planes.
-          break;
-        }
-        for (; n < block_size - 1; x >>= 1, n++) {
-          //* Continue writing 0's until a 1 bit is found.
-          //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
-          if (stream_write_bit(s, x & stream_word(1))) {
-            //* After writing a 1 bit, break out for another group test
-            //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
-            //* I.e., for every 1 bit encoded, do a group test on the rest.
-            break;
-          }
-        }
-      }
-    }
+//     while (i < total) {
+//       uint64 x = inputs[i++];
+//       x = stream_write_bits(s, x, n);
+//       //^ Step 3: unary run-length encode remainder of bit plane.
+// LOOP_ENCODE_ALL_BITPLANES_EMBED:
+//       for (; n < block_size; x >>= 1, n++) {
+//         if (!stream_write_bit(s, !!x)) {
+//           //^ Negative group test (x == 0) -> Done with all bit planes.
+//           break;
+//         }
+//         for (; n < block_size - 1; x >>= 1, n++) {
+//           //* Continue writing 0's until a 1 bit is found.
+//           //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
+//           if (stream_write_bit(s, x & stream_word(1))) {
+//             //* After writing a 1 bit, break out for another group test
+//             //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
+//             //* I.e., for every 1 bit encoded, do a group test on the rest.
+//             break;
+//           }
+//         }
+//       }
+//     }
 
     // *out_data = s;
     //* Returns the number of bits written.

@@ -465,12 +465,12 @@ TEST(STAGES, ENCODE_BITPLANES)
 
   stream_write_bits(s, 2 * emax + 1, bits);
 
-  // uint32 ublock[BLOCK_SIZE_2D] = {
-  //   1992158, 1736739, 1736739, 462686,
-  //   28905, 28910, 28371, 28371,
-  //   116490, 116490, 288, 114420,
-  //   114423, 1175, 1175, 5095
-  // };
+  uint32 ublock[BLOCK_SIZE_2D] = {
+    1992158, 1736739, 1736739, 462686,
+    28905, 28910, 28371, 28371,
+    116490, 116490, 288, 114420,
+    114423, 1175, 1175, 5095
+  };
 
   //  uint32 ublock[BLOCK_SIZE_2D] = {
   //   2002158, 6736799, 2736739, 462686,
@@ -479,12 +479,12 @@ TEST(STAGES, ENCODE_BITPLANES)
   //   114423, 1375, 1195, 6066
   // };
 
-  uint32 ublock[BLOCK_SIZE_2D] = {
-    4294967236, 329467215, 4294967214, 1104967293,
-    1294967212, 4294967281, 4294967240, 3294967209,
-    4294967208, 4294967277, 22967206, 4294967205,
-    1294967234, 494967203, 4294967202, 294967251
-  };
+  // uint32 ublock[BLOCK_SIZE_2D] = {
+  //   4294967236, 329467215, 4294967214, 1104967293,
+  //   1294967212, 4294967281, 4294967240, 3294967209,
+  //   4294967208, 4294967277, 22967206, 4294967205,
+  //   1294967234, 494967203, 4294967202, 294967251
+  // };
 
   zfp_output *output = alloc_zfp_output();
   double tolerance = 1e-3;
@@ -500,7 +500,7 @@ TEST(STAGES, ENCODE_BITPLANES)
 
 
   //* Only test encoding without bit limits.
-  uint encoded_bits = encode_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  uint encoded_bits = encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
   printf("Encoded bits:\t\t%u\n\n", encoded_bits);
 
   uint64 expected[2] = {

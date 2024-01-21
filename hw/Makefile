@@ -42,22 +42,22 @@ TEMP_DIR := ./_x.$(TARGET)
 TEST_DIR := ./tests
 
 #* Sources
-KERNEL_SRC = $(wildcard $(SRC_DIR)/*.cpp)
+KERNEL_SRC = $(wildcard $(SRC_DIR)/*.cpp stages/*.cpp)
 #* (Use immediate expansion `:=` to avoid re-evaluation of `wildcard`.)
 KERNEL_SRC := $(filter-out $(SRC_DIR)/host.cpp,$(KERNEL_SRC))
 
 HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
 TEST_ZFP_SRC := $(TEST_DIR)/test_zfp.cpp $(SRC_DIR)/common.cpp
-TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC) stages/emax.cpp
-TEST_CAST_SRC := $(TEST_DIR)/test_cast.cpp $(KERNEL_SRC) stages/cast.cpp
-TEST_DECORRELATE_SRC := $(TEST_DIR)/test_decorrelate.cpp $(KERNEL_SRC) stages/decorrelate.cpp
-TEST_REORDER_SRC := $(TEST_DIR)/test_reorder.cpp $(KERNEL_SRC) stages/reorder.cpp
-TEST_BITPLANE_SRC := $(TEST_DIR)/test_bitplane.cpp $(KERNEL_SRC) stages/bitplane.cpp
-TEST_ENCBLOCK_SRC := $(TEST_DIR)/test_encblock.cpp $(KERNEL_SRC) stages/encblock.cpp
-TEST_GATHER_SRC := $(TEST_DIR)/test_gather.cpp $(KERNEL_SRC) stages/gather.cpp
-TEST_WRITES_SRC := $(TEST_DIR)/test_writes.cpp $(KERNEL_SRC) stages/writes.cpp
-TEST_TRANSPOSE_SRC := $(TEST_DIR)/test_transpose.cpp $(KERNEL_SRC) stages/transpose.cpp
-TEST_EMBED_SRC := $(TEST_DIR)/test_embed.cpp $(KERNEL_SRC) stages/embed.cpp
+TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC)
+TEST_CAST_SRC := $(TEST_DIR)/test_cast.cpp $(KERNEL_SRC)
+TEST_DECORRELATE_SRC := $(TEST_DIR)/test_decorrelate.cpp $(KERNEL_SRC)
+TEST_REORDER_SRC := $(TEST_DIR)/test_reorder.cpp $(KERNEL_SRC)
+TEST_BITPLANE_SRC := $(TEST_DIR)/test_bitplane.cpp $(KERNEL_SRC)
+TEST_ENCBLOCK_SRC := $(TEST_DIR)/test_encblock.cpp $(KERNEL_SRC)
+TEST_GATHER_SRC := $(TEST_DIR)/test_gather.cpp $(KERNEL_SRC)
+TEST_WRITES_SRC := $(TEST_DIR)/test_writes.cpp $(KERNEL_SRC)
+TEST_TRANSPOSE_SRC := $(TEST_DIR)/test_transpose.cpp $(KERNEL_SRC)
+TEST_EMBED_SRC := $(TEST_DIR)/test_embed.cpp $(KERNEL_SRC)
 
 #* Targets
 KERNEL := gcow

@@ -14,7 +14,7 @@
 #include <ap_int.h>
 #include <stdarg.h>
 #include <hls_stream.h>
-#include "ap_axi_sdata.h"
+// #include "ap_axi_sdata.h"
 
 #include "common.hpp"
 
@@ -33,8 +33,8 @@ typedef uint32_t uint32;
 typedef int64_t int64;
 typedef uint64_t uint64;
 
-typedef ap_axis<32, 0, 0, 0> sdata;
-typedef ap_axiu<32, 0, 0, 0> udata;
+// typedef ap_axis<32, 0, 0, 0> sdata;
+// typedef ap_axiu<32, 0, 0, 0> udata;
 
 //* Data block (a parallel unit)
 template <typename T, size_t N>

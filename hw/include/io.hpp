@@ -4,6 +4,14 @@
 #include "types.hpp"
 
 
+void pad_bits(
+  hls::stream<uint> &in_encoded_bits, 
+  uint bits,
+  uint minbits,
+  size_t block_id,
+  hls::stream<write_request_t> &write_queue,
+  hls::stream<uint> &out_encoded_bits);
+
 void drain_write_queue_fsm(zfp_output &output, hls::stream<write_request_t> &write_queue, size_t total_blocks);
 
 void relay_scalers_2d(
@@ -11,7 +19,7 @@ void relay_scalers_2d(
   hls::stream<float> &out_float);
 
 void drain_write_queue_fsm(
-  zfp_output &output, 
+  stream &s, 
   size_t total_blocks,
   hls::stream<write_request_t> &write_queue, 
   hls::stream<ap_uint<1>> &write_fsm_finished);
