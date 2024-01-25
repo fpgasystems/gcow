@@ -47,36 +47,48 @@ void fwd_reorder_int2uint_block(volatile uint32 *ublock, volatile const int32* i
 
 float quantize_scaler(float x, int e);
 
-void get_block_exponent(
+void compute_block_exponent_2d(
   size_t in_total_blocks,
   hls::stream<fblock_2d_t> &in_fblock, 
   const zfp_output &output, 
-  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_emax,
   hls::stream<uint> &out_maxprec,
   hls::stream<fblock_2d_t> &out_fblock);
 
 void fwd_float2int_2d(
-  hls::stream<fblock_2d_t> &in_fblock,
-  int emax,
-  hls::stream<iblock_2d_t> &out_iblock);
-
-void fwd_blockfloats2ints(
   size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
   hls::stream<fblock_2d_t> &in_fblock,
-  hls::stream<int> &in_emax,
-  uint minbits,
-  hls::stream<write_request_t> &write_queue,
-  hls::stream<int> &out_emax,
-  hls::stream<uint> &out_bits,
-  hls::stream<iblock_2d_t> &out_iblock);
+  hls::stream<iblock_2d_t> &out_iblock,
+  hls::stream<uint> &out_emax);
 
 void fwd_decorrelate_2d(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
   hls::stream<iblock_2d_t> &in_iblock,
-  hls::stream<iblock_2d_t> &out_iblock);
+  hls::stream<iblock_2d_t> &out_iblock,
+  hls::stream<uint> &out_emax);
 
 void fwd_reorder_int2uint_2d(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
   hls::stream<iblock_2d_t> &in_iblock,
-  hls::stream<ublock_2d_t> &out_ublock);
+  hls::stream<ublock_2d_t> &out_ublock,
+  hls::stream<uint> &out_emax);
+
+void encode_bitplanes_2d(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_maxprec,
+  hls::stream<ublock_2d_t> &in_ublock,
+  zfp_output &output,
+  hls::stream<write_request_t> &bitplane_queue);
+
+void encode_padding(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_bits,
+  hls::stream<uint> &in_minbits,
+  hls::stream<write_request_t> &padding_queue);
 
 void gather_2d_block(hls::stream<float> fblock[BLOCK_SIZE_2D], const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy);
@@ -101,13 +113,5 @@ void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input);
 
 // void encode_all_bitplanes(stream &s, volatile const uint32 *const ublock,
 //                           uint maxprec, uint block_size, uint *encoded_bits);
-
-void encode_bitplanes_2d(
-  hls::stream<ublock_2d_t> &in_ublock,
-  uint minbits,
-  uint maxbits,
-  uint maxprec,
-  hls::stream<write_request_t> &write_queue,
-  hls::stream<uint> &out_bits);
 
 #endif // ENCODE_HPP

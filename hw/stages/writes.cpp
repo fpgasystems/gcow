@@ -6,19 +6,20 @@
 void enqueue_write_request(
   hls::stream<write_request_t> &write_queue)
 {
-  write_queue.write(write_request_t(0, 0, 1, false));
+  uint index = 0;
+  write_queue.write(write_request_t(0, index++, 0, 1, false));
   //* Actual data 1.
-  write_queue.write(write_request_t(0, 64, 7455816852505100291UL, false));
-  write_queue.write(write_request_t(0, 0, 2, false));
-  write_queue.write(write_request_t(0, 0, 3, false));
+  write_queue.write(write_request_t(0, index++, 64, 7455816852505100291UL, false));
+  write_queue.write(write_request_t(0, index++, 0, 2, false));
+  write_queue.write(write_request_t(0, index++, 0, 3, false));
   //* Actual data 2.
-  write_queue.write(write_request_t(0, 9, 432UL, false));
+  write_queue.write(write_request_t(0, index++, 9, 432UL, false));
   //* Indicate the end of the block.
-  write_queue.write(write_request_t(0, 0, 4, true));
+  write_queue.write(write_request_t(0, index++, 0, 4, true));
 }
 
 void dequeue_write_request(
-  stream &s, hls::stream<ap_uint<1>> &write_fsm_finished, ptrdiff_t *stream_idx)
+  stream &s, hls::stream<bit_t> &write_fsm_finished, ptrdiff_t *stream_idx)
 {
   write_fsm_finished.read();
   *stream_idx = s.idx;
@@ -36,10 +37,10 @@ extern "C" {
     stream s(out_data, max_bytes);
 
     hls::stream<write_request_t, 32> write_queue;
-    hls::stream<ap_uint<1>> write_fsm_finished;
+    hls::stream<bit_t> write_fsm_finished;
 
     //* Launch the write FSMs.
-    drain_write_queue_fsm(s, 1, write_queue, write_fsm_finished);
+    drain_write_queue_fsm(1, s, write_queue, write_fsm_finished);
 
     //* Write some bits.
     enqueue_write_request(write_queue);

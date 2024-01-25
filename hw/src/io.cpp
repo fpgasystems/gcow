@@ -7,66 +7,88 @@
 size_t g_write_block_id = 0; /* block id of the current write request */
 size_t g_write_index = 0; /* index of the current write request in the block */
 
-
-void pad_bits(
-  hls::stream<uint> &in_encoded_bits, 
-  uint bits,
-  uint minbits,
-  size_t block_id,
-  hls::stream<write_request_t> &write_queue,
-  hls::stream<uint> &out_encoded_bits)
+void await_fsm(hls::stream<bit_t> &finished)
 {
-  bits += in_encoded_bits.read();
-  //* Padding to the minimum number of bits required.
-  if (bits < minbits) {
-    // stream_pad(output.data, minbits - bits);
-    write_queue.write(
-      write_request_t(block_id, minbits - bits, (uint64)0, true));
-    out_encoded_bits.write(minbits);
-  } else {
-    //* Write an empty request to signal the end of the block.
-    write_queue.write(
-      write_request_t(block_id, 0, (uint64)0, true));
-    out_encoded_bits.write(bits);
-  }
+  finished.read();
 }
 
 void drain_write_queue_fsm(
-  stream &s, 
-  size_t total_blocks,
-  hls::stream<write_request_t> &write_queue, 
-  hls::stream<ap_uint<1>> &write_fsm_finished)
+  size_t in_total_blocks,
+  stream &s,
+  hls::stream<write_request_t> &write_queue,
+  hls::stream<bit_t> &write_fsm_finished)
 {
-  //! Assuming requests are in order.
-  size_t block_id = 0;
-  write_queue_loop: for (; block_id < total_blocks; ) {
-    //* Blocking read.
-    write_request_t request_buf = write_queue.read();
-    // if (request_buf.block_id != block_id) {
-    //   //! Something is wrong.
-    //   break;
-    // }
-    if (request_buf.nbits > 1) {
-      if (request_buf.value > 0) {
-        stream_write_bits(s, request_buf.value, request_buf.nbits);
-      } else {
-        //* Zero paddings.
-        stream_pad(s, request_buf.nbits);
+  write_queues_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    // write_queues_loop: for (uint stage = 0; stage < NUM_WRITE_QUEUES; ) {
+    write_request_t request_buf;
+    uint index = 0;
+    do {
+      //* Blocking read (every stage has ≥1 write request).
+      request_buf = write_queue.read();
+      //* Using the block id from the request to determine the current block.
+      //& assert(request_buf.block_id == block_id);
+      // block_id = request_buf.block_id;
+      if (request_buf.index != index++) {
+        //! Verify the order of the write requests within a block for debugging (validated).
+        continue;
       }
-    } else if (request_buf.nbits == 1) {
-      stream_write_bit(s, request_buf.value);
-    } else {
-      //* Empty request signals the end of the block, expecting the `last` flag to be set.
-    }
-    if (request_buf.last) {
-      block_id++;
-    }
+
+      if (request_buf.nbits > 1) {
+        if (request_buf.value > 0) {
+          stream_write_bits(s, request_buf.value, request_buf.nbits);
+        } else {
+          //* Zero paddings.
+          stream_pad(s, request_buf.nbits);
+        }
+      } else if (request_buf.nbits == 1) {
+        stream_write_bit(s, request_buf.value);
+      } else {
+        //* Empty request signals the end of an encoding stage, 
+        //* expecting the `last` flag to be set.
+      }
+    } while (!request_buf.last);
   }
-  if (block_id == total_blocks) {
-    stream_flush(s);
-    write_fsm_finished.write(1);
-  }
+  //& assert(block_id == in_total_blocks);
+  stream_flush(s);
+  write_fsm_finished.write(1);
 }
+
+// void drain_write_queue_fsm(
+//   stream &s, 
+//   size_t total_blocks,
+//   hls::stream<write_request_t> &write_queue, 
+//   hls::stream<bit_t> &write_fsm_finished)
+// {
+//   //! Assuming requests are in order.
+//   size_t block_id = 0;
+//   write_queue_loop: for (; block_id < total_blocks; ) {
+//     //* Blocking read.
+//     write_request_t request_buf = write_queue.read();
+//     // if (request_buf.block_id != block_id) {
+//     //   //! Something is wrong.
+//     //   break;
+//     // }
+//     if (request_buf.nbits > 1) {
+//       if (request_buf.value > 0) {
+//         stream_write_bits(s, request_buf.value, request_buf.nbits);
+//       } else {
+//         //* Zero paddings.
+//         stream_pad(s, request_buf.nbits);
+//       }
+//     } else if (request_buf.nbits == 1) {
+//       stream_write_bit(s, request_buf.value);
+//     } else {
+//       //* Empty request signals the end of the block, expecting the `last` flag to be set.
+//     }
+//     if (request_buf.last) {
+//       block_id++;
+//     }
+//   }
+//   if (block_id == total_blocks) {
+//     stream_flush(s);
+//     write_fsm_finished.write(1);
+//   }
+// }
 
 void relay_scalers_2d(
   hls::stream<fblock_2d_t> &in_block, 
@@ -78,23 +100,6 @@ void relay_scalers_2d(
       #pragma HLS PIPELINE II=1
       out_float << block_buf.data[i];
     }
-  }
-}
-
-void drain_write_queues_fsm(
-  zfp_output &output,
-  size_t MAX_NUM_BLOCKS, 
-  hls::stream<write_request_t> *write_queues)
-{
-  bool is_last_block = false;
-  while (!is_last_block) {
-    //* Blocking read.
-    write_request_t request_buf = write_queues[g_write_block_id].read();
-    // stream_write_bits(output.data, request_buf.value, request_buf.nbits);
-    if (request_buf.last) {
-      g_write_block_id++;
-    }
-    is_last_block = g_write_block_id == MAX_NUM_BLOCKS;
   }
 }
 

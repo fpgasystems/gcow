@@ -28,7 +28,7 @@ extern "C" {
     read_block_decorrelate(iblock, block);
 
     hls::stream<iblock_2d_t> block_relay;
-    fwd_decorrelate_2d(block, block_relay);
+    // fwd_decorrelate_2d(block, block_relay);
 
     write_block_decorrelate(block_relay, iblock);
   }

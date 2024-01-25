@@ -68,11 +68,12 @@ int main(int argc, char** argv)
               block.data(),
               &err));
 
-  size_t emax[] = {0};
+  uint num_blocks = 3;
+  uint emax[num_blocks] = {0, 0, 0};
   OCL_CHECK(err,
             cl::Buffer buffer_emax(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-              sizeof(size_t),
+              sizeof(uint) * num_blocks,
               emax,
               &err));
 
@@ -116,10 +117,18 @@ int main(int argc, char** argv)
             << std::endl;
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
-  std::cout << "emax: " << *emax << std::endl;
+  // std::cout << "emax: " << *emax << std::endl;
 
   //* Validate against software implementation.
-  bool matched = *emax == 1 + EBIAS;
+  bool matched = true;
+  for (uint i = 0; i < num_blocks; i++) {
+    matched = matched && emax[i] == 1 + EBIAS;
+    std::cout << "emax[" << i << "]: " << emax[i] << std::endl;
+    if (!matched) {
+      std::cout << "Mismatch at index " << i << std::endl;
+      break;
+    }
+  }
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
   return (matched ? EXIT_SUCCESS : EXIT_FAILURE);

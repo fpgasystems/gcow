@@ -373,8 +373,6 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   void *buffer = malloc(output_bytes);
   stream *s = stream_init(buffer, output_bytes);
 
-  stream_write_bits(s, 2 * emax + 1, bits);
-
   uint32 ublock[BLOCK_SIZE_2D] = {
     1992158, 1736739, 1736739, 462686,
     28905, 28910, 28371, 28371,
@@ -403,6 +401,11 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
 
   uint maxprec = get_precision(emax, output->maxprec, output->minexp, 2);
   printf("Max precision:\t\t%u\n", maxprec);
+
+  uint e = maxprec ? (uint)(emax + EBIAS) : 0;
+  stream_write_bits(s, 2 * e + 1, bits);
+  printf("Emax:\t\t\t%d\n", e);
+
   bool exceeded = exceeded_maxbits(output->maxbits, maxprec, BLOCK_SIZE_2D);
   printf("Maxbits:\t\t%u\n", output->maxbits);
   printf("Exceeded maxbits:\t%s\n", exceeded ? "true" : "false");
@@ -411,21 +414,23 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
 
   //* Only test encoding without bit limits.
   uint encoded_bits = encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  stream_write_bits(s, 2 * e + 1, bits);
+  encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  stream_write_bits(s, 2 * e + 1, bits);
+  encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
   printf("Encoded bits:\t\t%u\n\n", encoded_bits);
 
-  uint64 expected[2] = {
-    7455816852505100291UL,
-    432UL
+  uint64 expected[] = {
+    7455816852505100545, 16251154523178141104, 2219077248400933277, 453408646
   };
 
   // uint64 expected[2] = {
-  //   2318511421321904131,
-  //   113368486UL
+  //   2318511421321904385,
+  //   113368486
   // };
 
-  // uint64 expected[2] = {
-  //   7455816852505100291UL,
-  //   433UL
+  // uint64 expected[] = {
+  //   2318511421321904385, 1068580853971541414, 59437736853864
   // };
 
   printf("stream.idx: %ld\n", s->idx);
@@ -437,14 +442,14 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
 
   EXPECT_EQ(s->begin[0], expected[0]);
-  EXPECT_EQ(s->buffer, expected[1]);
-  EXPECT_EQ(stream_size_bytes(s), sizeof(uint64));
+  EXPECT_EQ(s->buffer, expected[3]);
+  EXPECT_EQ(stream_size_bytes(s), 3*sizeof(uint64));
 
   stream_flush(s);
 
   EXPECT_EQ(s->begin[1], expected[1]);
   EXPECT_EQ(s->buffer, 0U);
-  EXPECT_EQ(stream_size_bytes(s), 2*sizeof(uint64));
+  EXPECT_EQ(stream_size_bytes(s), 4*sizeof(uint64));
 
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");

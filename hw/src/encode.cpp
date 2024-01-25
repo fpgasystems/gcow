@@ -93,17 +93,15 @@ LOOP_GATHER_PARTIAL_2D_BLOCK_INNER:
     pad_partial_block(block + x, ny, 4);
 }
 
-void get_block_exponent(
+void compute_block_exponent_2d(
   size_t in_total_blocks,
   hls::stream<fblock_2d_t> &in_fblock, 
   const zfp_output &output, 
-  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_emax,
   hls::stream<uint> &out_maxprec,
-  hls::stream<fblock_2d_t> &out_fblock) 
+  hls::stream<fblock_2d_t> &out_fblock)
 {
-  //! Can't modify the input signal directly. First, read it into a buffer.
-  size_t total_blocks = in_total_blocks;
-  emax_block_loop: for (; total_blocks--; ) {
+  emax_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     //* Blocking read.
     fblock_2d_t fblock_buf = in_fblock.read();
     //* Immediately relay the read block to the next module.
@@ -120,97 +118,51 @@ void get_block_exponent(
     //~ 2: Get the exponent of the maximum floating point.
     int e = -EBIAS;
     if (emax > 0) {
-      //* Get exponent of x.
+      //* Get exponent of emax.
       FREXP(emax, &e);
       //* Clamp exponent in case x is subnormal; may still result in overflow.
       //* E.g., smallest number: 2^(-126) = 1.1754944e-38, which is subnormal.
       e = MAX(e, 1 - EBIAS);
     }
     uint maxprec = get_precision(e, output.maxprec, output.minexp, 2);
-    e = maxprec ? (uint)(e + EBIAS) : 0;
-    
+    //! Block exponent: float -> int -> uint.
+    uint e_out = maxprec ? (uint)(e + EBIAS) : 0;
+
     out_maxprec.write(maxprec);
-    out_emax.write(e);
+    out_emax.write(e_out);
   }
 }
 
 void fwd_float2int_2d(
-  hls::stream<fblock_2d_t> &in_fblock,
-  int emax,
-  hls::stream<iblock_2d_t> &out_iblock)
-{
-  fblock_2d_t fblock_buf = in_fblock.read();
-  iblock_2d_t iblock_buf;
-  iblock_buf.id = fblock_buf.id;
-
-  // uint64 tmp;
-  // stream s;
-  // //! Writing to output.data will give return-value error.
-  // stream_write_bits(s, (2 * emax + 1), 2, &tmp);
-  //* Compute power-of-two scale factor for all floats in the block
-    //* relative to emax of the block.
-    float scale = quantize_scaler(1.0f, emax);
-    fwd_f2i_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
-      #pragma HLS pipeline II=2
-
-      //* Compute p-bit int y = s*x where x is floating and |y| <= 2^(p-2) - 1
-      iblock_buf.data[i] = (int32)(scale * fblock_buf.data[i]);
-    }
-  out_iblock.write(iblock_buf);
-}
-
-void fwd_blockfloats2ints(
   size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
   hls::stream<fblock_2d_t> &in_fblock,
-  hls::stream<int> &in_emax,
-  uint minbits,
-  hls::stream<write_request_t> &write_queue,
-  hls::stream<int> &out_emax,
-  hls::stream<uint> &out_bits,
-  hls::stream<iblock_2d_t> &out_iblock)
+  hls::stream<iblock_2d_t> &out_iblock,
+  hls::stream<uint> &out_emax)
 {
-  fwd_blockf2i_block_loop: 
-  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+  fwd_f2i_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     //* Blocking reads.
+    uint emax = in_emax.read();
     fblock_2d_t fblock_buf = in_fblock.read();
     iblock_2d_t iblock_buf;
     iblock_buf.id = fblock_buf.id;
-    int emax = in_emax.read();
 
-    uint bits = 1;
-    write_request_t wrequest;
-    size_t block_size = BLOCK_SIZE_2D;
-
-    //* Encode block only if biased exponent is nonzero
+    //* Encode block only if biased exponent is nonzero.
     if (emax) {
-      //* Encode emax
-      bits += EBITS;
-      wrequest = {block_id, bits, (uint64)(2 * emax + 1), false};
-
       //* Compute power-of-two scale factor for all floats in the block
       //* relative to emax of the block.
       float scale = quantize_scaler(1.0f, emax);
-      fwd_blockf2i_loop: for (uint i = 0; i < block_size; i++) {
+      fwd_f2i_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
         #pragma HLS pipeline II=2
 
         //* Compute p-bit int y = s*x where x is floating and |y| <= 2^(p-2) - 1
         iblock_buf.data[i] = (int32)(scale * fblock_buf.data[i]);
       }
-      bits = MIN(bits, minbits);
-    } else {
-      //* Encode single zero-bit to indicate that all values are zero
-      wrequest = {block_id, 1, 0, false};
-      // if (minbits > bits) {
-      //   bits = minbits;
-      //   //TODO: Padding.
-      //   stream_pad(output->data, output->minbits - bits);
-      //   bits = output->minbits;
-      // }
     }
-    write_queue.write(wrequest);
+    //* Relay the block even if it's all zeros.
+    //TODO: Find a way to avoid this.
     out_iblock.write(iblock_buf);
     out_emax.write(emax);
-    out_bits.write(bits);
   }
 }
 
@@ -230,7 +182,7 @@ float quantize_scaler(float x, int e)
   return LDEXP(x, ((int)(CHAR_BIT * sizeof(float)) - 2) - e);
 }
 
-void fwd_cast(hls::stream<int32> &out_integer, hls::stream<float> &in_float, uint dim, int emax)
+void fwd_cast(hls::stream<int32> &out_integer, hls::stream<float> &in_float, uint dim, uint emax)
 {
   size_t block_size = BLOCK_SIZE(dim);
 
@@ -310,12 +262,25 @@ void fwd_lift_vector(volatile int32 *p, ptrdiff_t s)
 }
 
 void fwd_decorrelate_2d(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
   hls::stream<iblock_2d_t> &in_iblock,
-  hls::stream<iblock_2d_t> &out_iblock)
+  hls::stream<iblock_2d_t> &out_iblock,
+  hls::stream<uint> &out_emax)
 {
-  iblock_2d_t iblock_buf = in_iblock.read();
-  fwd_decorrelate_2d_block(iblock_buf.data);
-  out_iblock.write(iblock_buf);
+  fwd_decorrelate_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    //* Blocking reads.
+    uint emax = in_emax.read();
+    iblock_2d_t iblock_buf = in_iblock.read();
+
+    //* Encode block only if biased exponent is nonzero.
+    if (emax) {
+      fwd_decorrelate_2d_block(iblock_buf.data);
+    }
+    //* Relay the block even if nothing is done.
+    out_iblock.write(iblock_buf);
+    out_emax.write(emax);
+  }
 }
 
 void fwd_decorrelate_2d_block(volatile int32 *iblock)
@@ -341,15 +306,27 @@ uint32 twoscomplement_to_negabinary(int32 x)
 
 
 void fwd_reorder_int2uint_2d(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
   hls::stream<iblock_2d_t> &in_iblock,
-  hls::stream<ublock_2d_t> &out_ublock)
+  hls::stream<ublock_2d_t> &out_ublock,
+  hls::stream<uint> &out_emax)
 {
-  iblock_2d_t iblock_buf = in_iblock.read();
-  ublock_2d_t ublock_buf;
-  ublock_buf.id = iblock_buf.id;
+  fwd_reorder_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    //* Blocking reads.
+    uint emax = in_emax.read();
+    iblock_2d_t iblock_buf = in_iblock.read();
+    ublock_2d_t ublock_buf;
+    ublock_buf.id = iblock_buf.id;
 
-  fwd_reorder_int2uint_block(ublock_buf.data, iblock_buf.data, PERM_2D, BLOCK_SIZE_2D);
-  out_ublock.write(ublock_buf);
+    //* Encode block only if biased exponent is nonzero.
+    if (emax) {
+      fwd_reorder_int2uint_block(ublock_buf.data, iblock_buf.data, PERM_2D, BLOCK_SIZE_2D);
+    }
+    //* Relay the block even if nothing is done.
+    out_ublock.write(ublock_buf);
+    out_emax.write(emax);
+  }
 }
 
 /* Reorder signed coefficients and convert to unsigned integer */
@@ -368,7 +345,8 @@ void fwd_reorder_int2uint_block(volatile uint32 *ublock, volatile const int32 *i
 
 /* Compress <= 64 (1-3D) unsigned integers with rate contraint */
 void encode_partial_bitplanes(volatile const uint32 *const ublock,
-                              hls::stream<write_request_t> &write_queue, size_t block_id,
+                              hls::stream<write_request_t> &write_queue, 
+                              size_t block_id, uint &index,
                               uint maxbits, uint maxprec, uint block_size, uint *encoded_bits)
 {
   /* Make a copy of bit stream to avoid aliasing */
@@ -397,7 +375,7 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
     m = MIN(n, bits);
     bits -= m;
     //* (The first n bits "are encoded verbatim.")
-    write_queue.write( write_request_t(block_id, m, x, false) );
+    write_queue.write( write_request_t(block_id, index++, m, x, false) );
     x >>= m;
     // stream_write_bits(s, x, m, &x);
 
@@ -410,7 +388,7 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
       //& `!!` is used to convert a value to its corresponding boolean value, e.g., !!5 == true.
       //& `stream_write_bit()` returns the bit (1/0) that was written.
       bit = !!x;
-      write_queue.write( write_request_t(block_id, 1, bit, false) );
+      write_queue.write( write_request_t(block_id, index++, 1, bit, false) );
       // stream_write_bit(s, bit, &bit);
       if (bit) {
         //^ Positive group test (x != 0) -> Scan for one-bit.
@@ -420,7 +398,7 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
           //* Continue writing 0's until a 1 bit is found.
           //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
           bit = x & 1u;
-          write_queue.write( write_request_t(block_id, 1, bit, false) );
+          write_queue.write( write_request_t(block_id, index++, 1, bit, false) );
           // stream_write_bit(s, bit, &bit);
           if (bit)
             //* After writing a 1 bit, break out for another group test
@@ -429,13 +407,12 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
         }
       } else {
         //^ Negative group test (x == 0) -> Done with bit plane.
-        //TODO: Determine the last bit here (w/o wasting a write request)
         break;
       }
     }
   }
-  // //* Write an empty request to indicate the end of the block.
-  // write_queue.write( write_request_t(block_id, 0, 0, true /* last bit */) );
+  // //* Write an empty request to signal the end of this stage.
+  // write_queue.write( write_request_t(block_id, 0, (uint64)0, true/* last bit for this stage */) );
 
   //* Returns the number of bits written (constrained by `maxbits`).
   *encoded_bits = maxbits - bits;
@@ -443,7 +420,8 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
 
 /* Compress <= 64 (1-3D) unsigned integers without rate contraint */
 void encode_all_bitplanes(volatile const uint32 *const ublock,
-                          hls::stream<write_request_t> &write_queue, size_t block_id,
+                          hls::stream<write_request_t> &write_queue, 
+                          size_t block_id, uint &index,
                           uint maxprec, uint block_size, uint *encoded_bits)
 {
   // uint64 offset = stream_woffset(s);
@@ -466,16 +444,13 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
 
     //^ Step 2: encode first n bits of bit plane.
     bits += n;
-    write_queue.write( write_request_t(block_id, n, x, false) );
+    write_queue.write( write_request_t(block_id, index++, n, x, false) );
     x >>= n;
-    // uint64 new_x;
-    // stream_write_bits(s, x, n, &new_x);
-    // x = stream_word(new_x);
 
     //^ Step 3: unary run-length encode remainder of bit plane.
     all_bitplanes_embed_loop: for (; n < block_size; x >>= 1, n++) {
       bit = !!x;
-      write_queue.write( write_request_t(block_id, 1, bit, false) );
+      write_queue.write( write_request_t(block_id, index++, 1, bit, false) );
       bits++;
       // stream_write_bit(s, bit, &bit);
       if (!bit) {
@@ -486,7 +461,7 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
         //* Continue writing 0's until a 1 bit is found.
         //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
         bit = x & stream_word(1);
-        write_queue.write( write_request_t(block_id, 1, bit, false) );
+        write_queue.write( write_request_t(block_id, index++, 1, bit, false) );
         bits++;
         // stream_write_bit(s, bit, &bit);
         if (bit) {
@@ -498,8 +473,8 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
       }
     }
   }
-  // //* Write an empty request to indicate the end of the block.
-  // write_queue.write( write_request_t(block_id, 0, 0, true /* last bit */) );
+  // //* Write an empty request to signal the end of this stage.
+  // write_queue.write( write_request_t(block_id, 0, (uint64)0, true/* last bit for this stage */) );
   
   //* Returns the number of bits written.
   *encoded_bits = bits;
@@ -507,134 +482,85 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
 }
 
 void encode_bitplanes_2d(
+  size_t in_total_blocks,
+  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_maxprec,
   hls::stream<ublock_2d_t> &in_ublock,
-  uint minbits,
-  uint maxbits,
-  uint maxprec,
-  hls::stream<write_request_t> &write_queue,
-  hls::stream<uint> &out_bits)
+  zfp_output &output,
+  hls::stream<write_request_t> &bitplane_queue)
 {
-  // //! Temporary only for the stage test.
-  // write_queue.write(write_request_t(0, 9, (uint64)(2 * 1 + 1), false));
-  // //! ------------------------------
+  encode_bitplanes_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    //* Blocking reads.
+    uint bits = 1;
+    uint emax = in_emax.read();
+    uint maxprec = in_maxprec.read();
+    ublock_2d_t ublock_buf = in_ublock.read();
+    uint minbits = output.minbits; 
+    uint index = 0;
 
-  ublock_2d_t ublock_buf = in_ublock.read();
-  uint encoded_bits = 0;
-  if (exceeded_maxbits(maxbits, maxprec, BLOCK_SIZE_2D)) {
-    //* Encode partial bitplanes with rate constraint.
-    encode_partial_bitplanes(
-      ublock_buf.data, write_queue, ublock_buf.id, maxbits, maxprec, BLOCK_SIZE_2D, &encoded_bits);
-  } else {
-    //* Encode all bitplanes without rate constraint.
-    encode_all_bitplanes(
-      ublock_buf.data, write_queue, ublock_buf.id, maxprec, BLOCK_SIZE_2D, &encoded_bits);
+    //* Encode block only if biased exponent is nonzero.
+    if (emax) {
+      //~ First, encode block exponent.
+      bits += EBITS;
+      bitplane_queue.write(
+        write_request_t(block_id, index++, bits, (uint64)(2 * emax + 1), false));
+
+      uint encoded_bits = 0;
+      uint maxbits = output.maxbits - bits;
+      //* Adjust the minimum number of bits required.
+      minbits -= MIN(bits, output.minbits);
+      //~ Bitplane coding with the fastest implementation.
+      if (exceeded_maxbits(maxbits, maxprec, BLOCK_SIZE_2D)) {
+        //* Encode partial bitplanes with rate constraint.
+        encode_partial_bitplanes(
+          ublock_buf.data, bitplane_queue, ublock_buf.id, index, maxbits, maxprec, BLOCK_SIZE_2D, &encoded_bits);
+      } else {
+        //* Encode all bitplanes without rate constraint.
+        encode_all_bitplanes(
+          ublock_buf.data, bitplane_queue, ublock_buf.id, index, maxprec, BLOCK_SIZE_2D, &encoded_bits);
+      }
+      bits += encoded_bits;
+    } else {
+      //* Write single zero-bit to encode the entire block.
+      bitplane_queue.write(
+        write_request_t(block_id, index++, bits, (uint64)0, false));
+      // bitplane_queue.write(write_request_t(block_id, bits, (uint64)0, true));
+    }
+
+    //~ Encode padding bits.
+    if (bits < minbits) {
+      bitplane_queue.write(
+        write_request_t(block_id, index++, minbits - bits, (uint64)0, true));
+      bits = minbits;
+    } else {
+      //* Write an empty request to signal the end of this stage.
+      bitplane_queue.write(
+        write_request_t(block_id, index++, 0, (uint64)0, true/* last bit for this stage */));
+    }
   }
-
-  // //! Temporary only for the stage test.
-  // write_queue.write(write_request_t(0, 0, 0, true /* last bit */));
-  // //! ------------------------------
-
-  out_bits.write(encoded_bits);
 }
 
-
-// uint encode_iblock(stream &out_data, uint minbits, uint maxbits,
-//                    uint maxprec, volatile int32 *iblock, size_t dim)
+// void encode_padding(
+//   size_t in_total_blocks,
+//   hls::stream<uint> &in_bits,
+//   hls::stream<uint> &in_minbits,
+//   hls::stream<write_request_t> &padding_queue)
 // {
-// #pragma HLS STREAM variable=iblock depth=8 type=fifo
-  
-//   size_t block_size = BLOCK_SIZE(dim);
-//   uint32 ublock[block_size];
-
-//   switch (dim) {
-//     case 2:
-//       //* Perform forward decorrelation transform.
-//       fwd_decorrelate_2d_block(iblock);
-//       //* Reorder signed coefficients and convert to unsigned integer
-//       fwd_reorder_int2uint(ublock, iblock, PERM_2D, block_size);
-//       break;
-//     //TODO: Implement other dimensions.
-//     default:
-//       break;
-//   }
-
-//   uint encoded_bits = 0;
-//   //* Bitplane coding with the fastest implementation.
-//   if (exceeded_maxbits(maxbits, maxprec, block_size)) {
-//     if (block_size < BLOCK_SIZE_4D) {
-//       //* Encode partial bitplanes with rate constraint.
-//       encoded_bits = encode_partial_bitplanes(out_data, ublock, maxbits, maxprec,
-//                                               block_size);
-//     } else {
-//       //TODO: Implement 4d encoding
-//     }
-//   } else {
-//     if (block_size < BLOCK_SIZE_4D) {
-//       //* Encode all bitplanes without rate constraint.
-//       encoded_bits = encode_all_bitplanes(out_data, ublock, maxprec, block_size);
-//     } else {
-//       //TODO: Implement 4d encoding
-//     }
-//   }
-
-//   //* Write at least minbits bits by padding with zeros.
-//   if (encoded_bits < minbits) {
-//     stream_pad(out_data, minbits - encoded_bits);
-//     encoded_bits = minbits;
-//   }
-//   return encoded_bits;
-// }
-
-// uint encode_fblock(zfp_output &output, hls::stream<float> fblock[BLOCK_SIZE_2D],
-//                    size_t dim)
-// {
-//   uint bits = 1;
-//   size_t block_size = BLOCK_SIZE(dim);
-//   float block[block_size];
-
-//   //* Buffer the stream of floats locally in this module.
-//   for (size_t i = 0; i < block_size; i++) {
+//   encode_padding_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
 //     //* Blocking reads.
-//     block[i] = fblock[i].read();
-//   }
+//     uint bits = in_bits.read();
+//     uint minbits = in_minbits.read();
 
-//   /* block floating point transform */
-//   //* Compute maximum exponent.
-//   int emax = get_block_exponent(block, block_size);
-//   uint maxprec = get_precision(emax, output.maxprec, output.minexp, dim);
-//   //* IEEE 754 exponent bias.
-//   uint e = maxprec ? (uint)(emax + EBIAS) : 0;
-
-//   /* encode block only if biased exponent is nonzero */
-//   //& Initialize block outside to circumvent LLVM stacksave intrinsic.
-//   int32 iblock[block_size];
-//   if (e) {
-//     /* encode common exponent (emax); LSB indicates that exponent is nonzero */
-//     bits += EBITS;
-//     //TODO: Separate the writing process.
-//     stream_write_bits(output.data, 2 * e + 1, bits);
-//     /* perform forward block-floating-point transform */
-//     fwd_cast_block(iblock, block, block_size, emax);
-//     /* encode integer block */
-//     bits += encode_iblock(
-//               output.data,
-//               //* Deduct the exponent bits, which are already encoded.
-//               output.minbits - MIN(bits, output.minbits),
-//               output.maxbits - bits,
-//               maxprec,
-//               iblock,
-//               dim);
-//   } else {
-//     /* write single zero-bit to indicate that all values are zero */
-//     //* Compress a block of all zeros and add padding if it's fixed-rate.
-//     stream_write_bit(output.data, 0);
-//     if (output.minbits > bits) {
-//       stream_pad(output.data, output.minbits - bits);
-//       bits = output.minbits;
+//     //* Padding to the minimum number of bits required.
+//     if (bits < minbits) {
+//       padding_queue.write(
+//         write_request_t(block_id, minbits - bits, (uint64)0, true));
+//     } else {
+//       //* Write an empty request to signal the end of this stage.
+//       padding_queue.write(
+//         write_request_t(block_id, 0, (uint64)0, true));
 //     }
 //   }
-//   // //* Return the number of encoded bits.
-//   return bits;
 // }
 
 
@@ -679,7 +605,7 @@ void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input)
         }
       }
 
-      fblock << fblock_buf;
+      fblock.write(fblock_buf);
     }
   }
 }

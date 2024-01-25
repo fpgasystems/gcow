@@ -10,6 +10,7 @@
 #define AXIS_ENABLE_STRB 0b00100000
 #define AXIS_ENABLE_USER 0b01000000
 // #define MAX_NUM_BLOCKS_2D 2
+#define NUM_WRITE_QUEUES 3
 
 #include <ap_int.h>
 #include <stdarg.h>
@@ -33,6 +34,10 @@ typedef uint32_t uint32;
 typedef int64_t int64;
 typedef uint64_t uint64;
 
+using bit_t = ap_uint<1>;
+// bit_t True = 1;
+// bit_t False = 0;
+
 // typedef ap_axis<32, 0, 0, 0> sdata;
 // typedef ap_axiu<32, 0, 0, 0> udata;
 
@@ -50,19 +55,19 @@ using ublock_2d_t = block<uint32, BLOCK_SIZE_2D>;
 //* Request to write `nbits` bits of `value` for encoding block `block_id`.
 struct write_request_t {
   size_t block_id;
-  // size_t index; // order of the request in the block
-  size_t nbits; // number of bits to write/read
+  uint index; // order of the request in the block
+  uint nbits; // number of bits to write/read
   uint64 value; // value to write/read
-  //TODO: Change to ap_uint<1>
+  //TODO: Change to bit_t
   bool last;   // last request of the block
   //^ 17 bytes
 
   write_request_t(void)
-    : block_id(0), nbits(0), value(0), last(false)
+    : block_id(0), index(index), nbits(0), value(0), last(false)
   {}
 
-  write_request_t(size_t block_id, size_t nbits, uint64 value, bool last)
-    : block_id(block_id), nbits(nbits), value(value), last(last)
+  write_request_t(size_t block_id, uint index, uint nbits, uint64 value, bool last)
+    : block_id(block_id), index(index), nbits(nbits), value(value), last(last)
   {}
 };
 

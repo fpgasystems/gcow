@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cassert>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 
@@ -11,14 +12,15 @@ void get_input_2d(float *input_data, size_t n);
 
 int main(int argc, char** argv)
 {
-  if (argc != 2) {
-    std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << std::endl;
+  if (argc != 3) {
+    std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << " <dim>" << std::endl;
     return EXIT_FAILURE;
   }
   cl_int err;
+  std::cout << std::endl << "--------------------------" << std::endl;
 
   //* Initialize input.
-  size_t dim = 100;
+  size_t dim = std::stoi(argv[2]);
   size_t in_dim = 2;
   size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);
@@ -80,6 +82,7 @@ int main(int argc, char** argv)
   // ensure that user buffer is used when user create Buffer/Mem object with CL_MEM_USE_HOST_PTR
 
   //* Allocate buffers in Global Memory
+  //& Read-only buffers for inputs.
   OCL_CHECK(err,
             cl::Buffer buffer_in_shape(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
@@ -94,11 +97,12 @@ int main(int argc, char** argv)
               &err));
   OCL_CHECK(err,
             cl::Buffer buffer_out_gradients(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
               max_output_bytes,
               out_zfp_gradients.data(),
               &err));
 
+  //& Read-write/write-only buffers for outputs.
   size_t out_bytes[] = {0};
   OCL_CHECK(err,
             cl::Buffer buffer_out_bytes(
@@ -143,18 +147,20 @@ int main(int argc, char** argv)
     buffer_out_gradients,
     buffer_out_bytes,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
-  q.finish();
+  OCL_CHECK(err, err = q.finish());
 
   auto end = std::chrono::high_resolution_clock::now();
   double duration = (std::chrono::duration_cast<std::chrono::milliseconds>
-                     (end-start).count() / 1000.0);
+                     (end-start).count());
 
-  std::cout << "Duration (including memcpy out): " << duration << " seconds"
+  std::cout << "Duration (including memcpy out): " << duration << " ms"
             << std::endl;
   std::cout << "Overall grad values per second = " << input_size / duration
             << std::endl;
   std::cout << "Compressed size: " << *out_bytes << " bytes" << std::endl;
 
+  // return EXIT_SUCCESS;
+  
   //* Validate against software implementation.
   std::stringstream zfpf;
   if (dim > 1e4)
@@ -176,6 +182,7 @@ int main(int argc, char** argv)
   } else {
     fwrite(out_zfp_gradients.data(), 1, *out_bytes, fp);
     fclose(fp);
+    std::cout << "Dumped compressed data to " << gcowf.str() << std::endl;
   }
 
   std::stringstream diffcmd;
@@ -197,7 +204,6 @@ void get_input_2d(float *input_data, size_t n)
     for (i = 0; i < nx; i++) {
       double x = 2.0 * i / nx;
       double y = 2.0 * j / ny;
-      input_data[i + nx * j] = (float)exp(-(x * x + y *
-                                            y)); //(i + 100 * j + 3.1415926);
+      input_data[i + nx * j] = (float)exp(-(x * x + y * y));
     }
 }

@@ -31,32 +31,20 @@ int main(int argc, char** argv)
   //   114423, 1375, 1195, 6066
   // };
 
-  // std::vector<uint32, aligned_allocator<uint32>> ublock = {
-  //   4294967236, 329467215, 4294967214, 1104967293,
-  //   1294967212, 4294967281, 4294967240, 3294967209,
-  //   4294967208, 4294967277, 22967206, 4294967205,
-  //   1294967234, 494967203, 4294967202, 294967251
-  // };
-
-  ptrdiff_t stream_idx_host = 2;
+  ptrdiff_t stream_idx_host = 4;
   uint64 expected[stream_idx_host] = {
-    7455816852505100291UL,
-    432UL
+    7455816852505100545, 16251154523178141104, 2219077248400933277, 453408646
   };
-  // ptrdiff_t stream_idx_host = 1;
-  // uint64 expected[stream_idx_host] = {
-  //   // 1687329373683715UL,
-  //   44828585475UL
+
+  // ptrdiff_t stream_idx_host = 2;
+  // uint64 expected[] = {
+  //   7455816852505100545,
+  //   432UL
   // };
 
-  // uint64 expected[stream_idx_host] = {
-  //   2318511421321904131,
-  //   113368486UL
-  // };
-
-  // uint64 expected[stream_idx_host] = {
-  //   7455816852505100291UL,
-  //   433UL
+  // ptrdiff_t stream_idx_host = 3;
+  // uint64 expected[] = {
+  //   2318511421321904385, 1068580853971541414, 59437736853864
   // };
 
   std::cout << "input unsigned ints:\t" << ublock.size() << std::endl;

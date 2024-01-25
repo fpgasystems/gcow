@@ -31,8 +31,7 @@ void gcow(
 
   //* Read input shape from the global memory.
   size_t input_shape[DIM_MAX];
-LOOP_READ_SHAPE:
-  for (int i = 0; i < in_dim; i++) {
+  read_shape_loop: for (int i = 0; i < in_dim; i++) {
     input_shape[i] = in_shape[i];
   }
 

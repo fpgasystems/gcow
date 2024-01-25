@@ -30,7 +30,7 @@ extern "C" {
     read_cast_block(in_fblock, fblock);
 
     hls::stream<iblock_2d_t> iblock;
-    fwd_float2int_2d(fblock, emax, iblock);
+    // fwd_float2int_2d(fblock, emax, iblock);
 
     write_cast_ouput(iblock, out_iblock);
   }

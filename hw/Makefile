@@ -29,6 +29,7 @@ help:
 
 # VPP := $(XILINX_VITIS)/bin/v++
 VPP := v++
+KERNEL := gcow
 EMCONFIGUTIL := $(XILINX_VITIS)/bin/emconfigutil
 TARGET := hw_emu
 PLATFORM := xilinx_u250_gen3x16_xdma_4_1_202210_1
@@ -38,7 +39,7 @@ SRC_DIR := src
 INCLUDE_DIR := include
 XILINX_VITIS_HLS := /tools/Xilinx/Vitis_HLS/2022.1
 XCLBIN_DIR := ./xclbin
-TEMP_DIR := ./_x.$(TARGET)
+TEMP_DIR := ./_x.$(KERNEL).$(TARGET)
 TEST_DIR := ./tests
 
 #* Sources
@@ -60,7 +61,6 @@ TEST_TRANSPOSE_SRC := $(TEST_DIR)/test_transpose.cpp $(KERNEL_SRC)
 TEST_EMBED_SRC := $(TEST_DIR)/test_embed.cpp $(KERNEL_SRC)
 
 #* Targets
-KERNEL := gcow
 HOST_EXE := $(KERNEL)_host
 TEST_ZFP_EXE := zfp_test
 TEST_EMAX_EXE := emax_test
