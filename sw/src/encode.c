@@ -461,14 +461,14 @@ uint encode_fblock(zfp_output* output, const float *fblock, size_t dim)
   int emax = get_block_exponent(fblock, block_size);
   uint maxprec = get_precision(emax, output->maxprec, output->minexp, dim);
   //* IEEE 754 exponent bias.
-  uint e = maxprec ? (uint)(emax + EBIAS) : 0;
+  uint biased_emax = maxprec ? (uint)(emax + EBIAS) : 0;
 
   /* encode block only if biased exponent is nonzero */
-  if (e) {
+  if (biased_emax) {
     int32 iblock[block_size];
     /* encode common exponent (emax); LSB indicates that exponent is nonzero */
     bits += EBITS;
-    stream_write_bits(output->data, 2 * e + 1, bits);
+    stream_write_bits(output->data, 2 * biased_emax + 1, bits);
     /* perform forward block-floating-point transform */
     fwd_cast_block(iblock, fblock, block_size, emax);
     /* encode integer block */

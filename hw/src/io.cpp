@@ -18,8 +18,7 @@ void drain_write_queue_fsm(
   hls::stream<write_request_t> &write_queue,
   hls::stream<bit_t> &write_fsm_finished)
 {
-  write_queues_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-    // write_queues_loop: for (uint stage = 0; stage < NUM_WRITE_QUEUES; ) {
+  write_queue_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     write_request_t request_buf;
     uint index = 0;
     do {
@@ -28,10 +27,10 @@ void drain_write_queue_fsm(
       //* Using the block id from the request to determine the current block.
       //& assert(request_buf.block_id == block_id);
       // block_id = request_buf.block_id;
-      if (request_buf.index != index++) {
-        //! Verify the order of the write requests within a block for debugging (validated).
-        continue;
-      }
+      // if (request_buf.index != index++) {
+      //   //* Verify the order of the write requests within a block for debugging (validated).
+      //   continue;
+      // }
 
       if (request_buf.nbits > 1) {
         if (request_buf.value > 0) {

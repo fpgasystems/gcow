@@ -97,7 +97,8 @@ void compute_block_exponent_2d(
   size_t in_total_blocks,
   hls::stream<fblock_2d_t> &in_fblock, 
   const zfp_output &output, 
-  hls::stream<uint> &out_emax,
+  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_bemax,
   hls::stream<uint> &out_maxprec,
   hls::stream<fblock_2d_t> &out_fblock)
 {
@@ -116,41 +117,46 @@ void compute_block_exponent_2d(
     }
 
     //~ 2: Get the exponent of the maximum floating point.
-    int e = -EBIAS;
+    int emax_out = -EBIAS;
     if (emax > 0) {
       //* Get exponent of emax.
-      FREXP(emax, &e);
+      FREXP(emax, &emax_out);
       //* Clamp exponent in case x is subnormal; may still result in overflow.
       //* E.g., smallest number: 2^(-126) = 1.1754944e-38, which is subnormal.
-      e = MAX(e, 1 - EBIAS);
+      emax_out = MAX(emax_out, 1 - EBIAS);
     }
-    uint maxprec = get_precision(e, output.maxprec, output.minexp, 2);
-    //! Block exponent: float -> int -> uint.
-    uint e_out = maxprec ? (uint)(e + EBIAS) : 0;
+    uint maxprec = get_precision(emax_out, output.maxprec, output.minexp, 2);
+    uint biased_emax = (maxprec)? (uint)(emax_out + EBIAS) : 0;
 
     out_maxprec.write(maxprec);
-    out_emax.write(e_out);
+    out_bemax.write(biased_emax);
+    out_emax.write(emax_out);
   }
 }
 
 void fwd_float2int_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<int> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<fblock_2d_t> &in_fblock,
   hls::stream<iblock_2d_t> &out_iblock,
-  hls::stream<uint> &out_emax)
+  hls::stream<uint> &out_bemax)
 {
   fwd_f2i_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-    //* Blocking reads.
-    uint emax = in_emax.read();
+    int emax = in_emax.read();
+    uint biased_emax = in_bemax.read();
+    //* Immediately relay the read emax to the next module.
+    out_bemax.write(biased_emax);
+
     fblock_2d_t fblock_buf = in_fblock.read();
     iblock_2d_t iblock_buf;
     iblock_buf.id = fblock_buf.id;
 
-    //* Encode block only if biased exponent is nonzero.
-    if (emax) {
+    //* Encode block only if *biased* exponent is nonzero.
+    if (biased_emax) {
       //* Compute power-of-two scale factor for all floats in the block
       //* relative to emax of the block.
+      //! Use `emax` instead of `biased_emax`.
       float scale = quantize_scaler(1.0f, emax);
       fwd_f2i_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
         #pragma HLS pipeline II=2
@@ -162,7 +168,6 @@ void fwd_float2int_2d(
     //* Relay the block even if it's all zeros.
     //TODO: Find a way to avoid this.
     out_iblock.write(iblock_buf);
-    out_emax.write(emax);
   }
 }
 
@@ -263,23 +268,23 @@ void fwd_lift_vector(volatile int32 *p, ptrdiff_t s)
 
 void fwd_decorrelate_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<iblock_2d_t> &in_iblock,
   hls::stream<iblock_2d_t> &out_iblock,
-  hls::stream<uint> &out_emax)
+  hls::stream<uint> &out_bemax)
 {
   fwd_decorrelate_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     //* Blocking reads.
-    uint emax = in_emax.read();
+    uint biased_emax = in_bemax.read();
     iblock_2d_t iblock_buf = in_iblock.read();
+    out_bemax.write(biased_emax);
 
     //* Encode block only if biased exponent is nonzero.
-    if (emax) {
+    if (biased_emax) {
       fwd_decorrelate_2d_block(iblock_buf.data);
     }
     //* Relay the block even if nothing is done.
     out_iblock.write(iblock_buf);
-    out_emax.write(emax);
   }
 }
 
@@ -307,25 +312,26 @@ uint32 twoscomplement_to_negabinary(int32 x)
 
 void fwd_reorder_int2uint_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<iblock_2d_t> &in_iblock,
   hls::stream<ublock_2d_t> &out_ublock,
-  hls::stream<uint> &out_emax)
+  hls::stream<uint> &out_bemax)
 {
   fwd_reorder_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     //* Blocking reads.
-    uint emax = in_emax.read();
+    uint biased_emax = in_bemax.read();
     iblock_2d_t iblock_buf = in_iblock.read();
+    out_bemax.write(biased_emax);
+
     ublock_2d_t ublock_buf;
     ublock_buf.id = iblock_buf.id;
 
     //* Encode block only if biased exponent is nonzero.
-    if (emax) {
+    if (biased_emax) {
       fwd_reorder_int2uint_block(ublock_buf.data, iblock_buf.data, PERM_2D, BLOCK_SIZE_2D);
     }
     //* Relay the block even if nothing is done.
     out_ublock.write(ublock_buf);
-    out_emax.write(emax);
   }
 }
 
@@ -349,9 +355,6 @@ void encode_partial_bitplanes(volatile const uint32 *const ublock,
                               size_t block_id, uint &index,
                               uint maxbits, uint maxprec, uint block_size, uint *encoded_bits)
 {
-  /* Make a copy of bit stream to avoid aliasing */
-  //! CHANGE: No copy is made here!
-  // stream s(out_data);
   uint intprec = (uint)(CHAR_BIT * sizeof(int32));
   //* `kmin` is the cutoff of the least significant bit plane to encode.
   uint kmin = intprec > maxprec ? intprec - maxprec : 0;
@@ -483,27 +486,28 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
 
 void encode_bitplanes_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<uint> &in_maxprec,
   hls::stream<ublock_2d_t> &in_ublock,
   zfp_output &output,
   hls::stream<write_request_t> &bitplane_queue)
 {
-  encode_bitplanes_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+  encode_bitplanes_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     //* Blocking reads.
-    uint bits = 1;
-    uint emax = in_emax.read();
+    uint biased_emax = in_bemax.read();
     uint maxprec = in_maxprec.read();
     ublock_2d_t ublock_buf = in_ublock.read();
-    uint minbits = output.minbits; 
-    uint index = 0;
 
-    //* Encode block only if biased exponent is nonzero.
-    if (emax) {
+    uint bits = 1;
+    uint index = 0;
+    uint minbits = output.minbits; 
+    //* Encode block only if *biased* exponent is nonzero.
+    if (biased_emax) {
       //~ First, encode block exponent.
       bits += EBITS;
       bitplane_queue.write(
-        write_request_t(block_id, index++, bits, (uint64)(2 * emax + 1), false));
+        //! Encode biased emax (NOT emax itself).
+        write_request_t(block_id, index++, bits, (uint64)(2 * biased_emax + 1), false));
 
       uint encoded_bits = 0;
       uint maxbits = output.maxbits - bits;
@@ -524,7 +528,6 @@ void encode_bitplanes_2d(
       //* Write single zero-bit to encode the entire block.
       bitplane_queue.write(
         write_request_t(block_id, index++, bits, (uint64)0, false));
-      // bitplane_queue.write(write_request_t(block_id, bits, (uint64)0, true));
     }
 
     //~ Encode padding bits.

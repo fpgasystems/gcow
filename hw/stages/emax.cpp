@@ -44,7 +44,7 @@ extern "C" {
   hls::stream<uint> emax;
   hls::stream<uint> maxprec;
   hls::stream<fblock_2d_t> fblock_relay;
-  compute_block_exponent_2d(num_blocks, fblock, output, emax, maxprec, fblock_relay);
+  // compute_block_exponent_2d(num_blocks, fblock, output, emax, maxprec, fblock_relay);
 
   // maxprec.read();
   // fblock_relay.read();

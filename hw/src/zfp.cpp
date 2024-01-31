@@ -46,28 +46,29 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   chunk_blocks_2d(fblock, input);
 
   //^ Step 2: Block floating-point transform.
-  hls::stream<uint, 32> emax;
+  hls::stream<int, 32> emax;
+  hls::stream<uint, 32> bemax;
   hls::stream<uint, 32> maxprec;
   hls::stream<fblock_2d_t, 512> fblock_relay;
-  compute_block_exponent_2d(total_blocks, fblock, output, emax, maxprec, fblock_relay);
+  compute_block_exponent_2d(total_blocks, fblock, output, emax, maxprec, bemax, fblock_relay);
 
   //^ Step 3: Cast floats to integers.
   hls::stream<iblock_2d_t, 512> iblock;
-  hls::stream<uint, 32> emax_relay;
-  fwd_float2int_2d(total_blocks, emax, fblock_relay, iblock, emax_relay);
+  hls::stream<uint, 32> bemax_relay;
+  fwd_float2int_2d(total_blocks, emax, bemax, fblock_relay, iblock, bemax_relay);
 
   //^ Step 4: Perform forward decorrelation transform.
   hls::stream<iblock_2d_t, 512> iblock_relay;
-  hls::stream<uint, 32> emax_relay2;
-  fwd_decorrelate_2d(total_blocks, emax_relay, iblock, iblock_relay, emax_relay2);
+  hls::stream<uint, 32> bemax_relay2;
+  fwd_decorrelate_2d(total_blocks, bemax_relay, iblock, iblock_relay, bemax_relay2);
 
   //^ Step 5: Perform forward block reordering transform and convert to unsigned integers.
   hls::stream<ublock_2d_t, 512> ublock;
-  hls::stream<uint, 32> emax_relay3;
-  fwd_reorder_int2uint_2d(total_blocks, emax_relay2, iblock_relay, ublock, emax_relay3);
+  hls::stream<uint, 32> bemax_relay3;
+  fwd_reorder_int2uint_2d(total_blocks, bemax_relay2, iblock_relay, ublock, bemax_relay3);
 
   //^ Step 6: Bit plane encoding.
   hls::stream<uint, 32> minbits;
   hls::stream<uint, 32> encoded_bits_relay;
-  encode_bitplanes_2d(total_blocks, emax_relay3, maxprec, ublock, output, write_queue);
+  encode_bitplanes_2d(total_blocks, bemax_relay3, maxprec, ublock, output, write_queue);
 }

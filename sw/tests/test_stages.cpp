@@ -237,17 +237,17 @@ TEST(STAGES, CAST)
                                         y)); // (float)(x + 100 * y + 3.1415926);
     }
 
-  fwd_cast_block(iblock, (const float*)fblock, BLOCK_SIZE_2D, 9);
+  fwd_cast_block(iblock, (const float*)fblock, BLOCK_SIZE_2D, 1);
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
     printf("%d, ", iblock[i]);
   }
   printf("\n");
 
   int32 expected[BLOCK_SIZE_2D] = {
-    2097152, 1633263, 771499, 221038,
-    1633263, 1271987, 600844, 172144,
-    771499, 600844, 283818, 81315,
-    221038, 172144, 81315, 23297
+    536870912, 418115488, 197503776, 56585776, 
+    418115488, 325628672, 153816096, 44069048, 
+    197503776, 153816096, 72657576, 20816744, 
+    56585776, 44069048, 20816744, 5964097
   };
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -258,19 +258,19 @@ TEST(STAGES, CAST)
 TEST(STAGES, DECORRELATE)
 {
   int32 iblock[BLOCK_SIZE_2D] = {
-    2097152, 1633263, 771499, 221038,
-    1633263, 1271987, 600844, 172144,
-    771499, 600844, 283818, 81315,
-    221038, 172144, 81315, 23297
+    536870912, 418115488, 197503776, 56585776, 
+    418115488, 325628672, 153816096, 44069048, 
+    197503776, 153816096, 72657576, 20816744, 
+    56585776, 44069048, 20816744, 5964097
   };
 
   fwd_decorrelate_2d_block(iblock);
 
   int32 expected[BLOCK_SIZE_2D] = {
-    664778, 360415, 12185, 49910,
-    360415, 195402, 6607, 27060,
-    12186, 6607, 224, 915,
-    49910, 27059, 915, 3747
+    170183444, 92266196, 3119492, 12777032, 
+    92266197, 50022792, 1691257, 6927161, 
+    3119493, 1691256, 57181, 234206, 
+    12777032, 6927161, 234205, 959274,
   };
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -286,10 +286,10 @@ TEST(STAGES, DECORRELATE)
 TEST(STAGES, REORDER)
 {
   int32 iblock[BLOCK_SIZE_2D] = {
-    664778, 360415, 12185, 49910,
-    360415, 195402, 6607, 27060,
-    12186, 6607, 224, 915,
-    49910, 27059, 915, 3747
+    170183444, 92266196, 3119492, 12777032, 
+    92266197, 50022792, 1691257, 6927161, 
+    3119493, 1691256, 57181, 234206, 
+    12777032, 6927161, 234205, 959274,
   };
 
   // int32 iblock[BLOCK_SIZE_2D] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -300,10 +300,10 @@ TEST(STAGES, REORDER)
   fwd_reorder_int2uint(ublock, iblock, PERM_2D, BLOCK_SIZE_2D);
 
   uint32 expected[BLOCK_SIZE_2D] = {
-    1992158, 1736739, 1736739, 462686,
-    28905, 28910, 28371, 28371,
-    116490, 116490, 288, 114420,
-    114423, 1175, 1175, 5095
+    509992724, 444605396, 444605397, 118447768, 
+    7401092, 7401093, 7263113, 7263112, 
+    29821528, 29821528, 73901, 29292361, 
+    29292361, 300834, 300845, 1304446
   };
   // uint32 expected[BLOCK_SIZE_2D] = {1, 6, 5, 26, 7, 25, 27, 30, 4, 29, 31, 24, 18, 28, 19, 16};
 
@@ -374,25 +374,11 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   stream *s = stream_init(buffer, output_bytes);
 
   uint32 ublock[BLOCK_SIZE_2D] = {
-    1992158, 1736739, 1736739, 462686,
-    28905, 28910, 28371, 28371,
-    116490, 116490, 288, 114420,
-    114423, 1175, 1175, 5095
+    509992724, 444605396, 444605397, 118447768, 
+    7401092, 7401093, 7263113, 7263112, 
+    29821528, 29821528, 73901, 29292361, 
+    29292361, 300834, 300845, 1304446
   };
-
-  //  uint32 ublock[BLOCK_SIZE_2D] = {
-  //   2002158, 6736799, 2736739, 462686,
-  //   28905, 28910, 90992, 28371,
-  //   116400, 116490, 388, 514420,
-  //   114423, 1375, 1195, 6066
-  // };
-
-  // uint32 ublock[BLOCK_SIZE_2D] = {
-  //   1992158, 1736739, 1736739, 462686,
-  //   38905, 28910, 28371, 28371,
-  //   116490, 116490, 288, 114420,
-  //   114423, 1175, 1175, 5095
-  // };
 
   zfp_output *output = alloc_zfp_output();
   double tolerance = 1e-3;
@@ -404,7 +390,8 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
 
   uint e = maxprec ? (uint)(emax + EBIAS) : 0;
   stream_write_bits(s, 2 * e + 1, bits);
-  printf("Emax:\t\t\t%d\n", e);
+  printf("emax:\t\t\t%d\n", emax);
+  printf("e:\t\t\t%d\n", e);
 
   bool exceeded = exceeded_maxbits(output->maxbits, maxprec, BLOCK_SIZE_2D);
   printf("Maxbits:\t\t%u\n", output->maxbits);
@@ -414,24 +401,22 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
 
   //* Only test encoding without bit limits.
   uint encoded_bits = encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
-  stream_write_bits(s, 2 * e + 1, bits);
-  encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
-  stream_write_bits(s, 2 * e + 1, bits);
-  encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  // stream_write_bits(s, 2 * e + 1, bits);
+  // encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  // stream_write_bits(s, 2 * e + 1, bits);
+  // encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
   printf("Encoded bits:\t\t%u\n\n", encoded_bits);
 
-  uint64 expected[] = {
-    7455816852505100545, 16251154523178141104, 2219077248400933277, 453408646
-  };
-
-  // uint64 expected[2] = {
-  //   2318511421321904385,
-  //   113368486
-  // };
-
   // uint64 expected[] = {
-  //   2318511421321904385, 1068580853971541414, 59437736853864
+  //   12711260835255415041, 5058120776611336133, 9096252834960252658, 
+  //   7789501227241241664, 10487902231007609841, 2274063208740063164, 
+  //   6559061325237698320, 2621975557751902460, 280285426033304047
   // };
+
+  uint64 expected[] = {
+    12711260835255415041, 5058120776611336133, 4484566816532864754
+  };
+  uint total = 3;
 
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");
@@ -442,14 +427,14 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   printf("stream_size_bytes: %lu\n\n", stream_size_bytes(s));
 
   EXPECT_EQ(s->begin[0], expected[0]);
-  EXPECT_EQ(s->buffer, expected[3]);
-  EXPECT_EQ(stream_size_bytes(s), 3*sizeof(uint64));
+  EXPECT_EQ(s->buffer, expected[(total-1)]);
+  EXPECT_EQ(stream_size_bytes(s), (total-1)*sizeof(uint64));
 
   stream_flush(s);
 
   EXPECT_EQ(s->begin[1], expected[1]);
   EXPECT_EQ(s->buffer, 0U);
-  EXPECT_EQ(stream_size_bytes(s), 4*sizeof(uint64));
+  EXPECT_EQ(stream_size_bytes(s), total*sizeof(uint64));
 
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");

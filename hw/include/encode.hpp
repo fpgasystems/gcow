@@ -51,34 +51,36 @@ void compute_block_exponent_2d(
   size_t in_total_blocks,
   hls::stream<fblock_2d_t> &in_fblock, 
   const zfp_output &output, 
-  hls::stream<uint> &out_emax,
+  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_bemax,
   hls::stream<uint> &out_maxprec,
   hls::stream<fblock_2d_t> &out_fblock);
 
 void fwd_float2int_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<int> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<fblock_2d_t> &in_fblock,
   hls::stream<iblock_2d_t> &out_iblock,
-  hls::stream<uint> &out_emax);
+  hls::stream<uint> &out_bemax);
 
 void fwd_decorrelate_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<iblock_2d_t> &in_iblock,
   hls::stream<iblock_2d_t> &out_iblock,
-  hls::stream<uint> &out_emax);
+  hls::stream<uint> &out_bemax);
 
 void fwd_reorder_int2uint_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<iblock_2d_t> &in_iblock,
   hls::stream<ublock_2d_t> &out_ublock,
-  hls::stream<uint> &out_emax);
+  hls::stream<uint> &out_bemax);
 
 void encode_bitplanes_2d(
   size_t in_total_blocks,
-  hls::stream<uint> &in_emax,
+  hls::stream<uint> &in_bemax,
   hls::stream<uint> &in_maxprec,
   hls::stream<ublock_2d_t> &in_ublock,
   zfp_output &output,

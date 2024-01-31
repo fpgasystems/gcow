@@ -79,7 +79,7 @@ int main(int argc, char** argv)
   std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
-  int emax = 9;
+  int emax = 1;
   int arg_counter = 0;
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_fblock));
@@ -121,10 +121,10 @@ int main(int argc, char** argv)
             << std::endl;
 
   int32 expected[BLOCK_SIZE_2D] = {
-    2097152, 1633263, 771499, 221038,
-    1633263, 1271987, 600844, 172144,
-    771499, 600844, 283818, 81315,
-    221038, 172144, 81315, 23297
+    536870912, 418115488, 197503776, 56585776, 
+    418115488, 325628672, 153816096, 44069048, 
+    197503776, 153816096, 72657576, 20816744, 
+    56585776, 44069048, 20816744, 5964097
   };
 
   //* Validate against software implementation.

@@ -5,7 +5,6 @@
 
 #include "host.hpp"
 #include "types.hpp"
-#include "common.hpp"
 
 
 int main(int argc, char** argv)
@@ -17,8 +16,7 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  std::vector<float, aligned_allocator<float>> block(BLOCK_SIZE_2D);
-
+  std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D);
   size_t nx = 4;
   size_t ny = 4;
 
@@ -26,10 +24,14 @@ int main(int argc, char** argv)
     for (size_t i = 0; i < nx; i++) {
       double x = 2.0 * i / nx;
       double y = 2.0 * j / ny;
-      block[i + nx * j] = (float)exp(-(x * x + y *
-                                       y)); // (float)(x + 100 * y + 3.1415926);
+      fblock[i + nx * j] = (float)exp(-(x * x + y *
+                                        y)); // (float)(x + 100 * y + 3.1415926);
     }
-  std::cout << "input floats:\t" << block.size() << std::endl;
+  std::cout << "input floats:\t" << fblock.size() << std::endl;
+
+  //* Initialize output.
+  size_t total_blocks = 3;
+  std::vector<uint32, aligned_allocator<uint32>> ublock(BLOCK_SIZE_2D*total_blocks);
 
   /* OPENCL HOST CODE AREA START */
   std::cout << std::endl << "--------------------------" << std::endl;
@@ -51,7 +53,7 @@ int main(int argc, char** argv)
   devices.resize(1);
   cl::Program program(context, devices, gcow_bins);
   std::cout << "\nCreated program from the bitstream\n";
-  cl::Kernel kernel(program, "emax");
+  cl::Kernel kernel(program, "integration");
   std::cout << "Created a kernel using the loaded program object\n";
 
   // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood user ptr
@@ -62,19 +64,17 @@ int main(int argc, char** argv)
 
   //* Allocate buffers in Global Memory
   OCL_CHECK(err,
-            cl::Buffer buffer_in_block(
+            cl::Buffer buffer_fblock(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
               BLOCK_SIZE_2D*sizeof(float),
-              block.data(),
+              fblock.data(),
               &err));
 
-  uint num_blocks = 3;
-  uint emax[num_blocks] = {0, 0, 0};
   OCL_CHECK(err,
-            cl::Buffer buffer_emax(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-              sizeof(uint) * num_blocks,
-              emax,
+            cl::Buffer buffer_ublock(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              total_blocks*BLOCK_SIZE_2D*sizeof(uint32),
+              ublock.data(),
               &err));
 
   std::cout << "Finished allocating buffers\n";
@@ -82,17 +82,17 @@ int main(int argc, char** argv)
   //* Set the Kernel Arguments
   int arg_counter = 0;
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_in_block));
+            err = kernel.setArg(arg_counter++, buffer_fblock));
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, BLOCK_SIZE_2D));
+            err = kernel.setArg(arg_counter++, total_blocks));
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_emax));
+            err = kernel.setArg(arg_counter++, buffer_ublock));
 
   //* Copy input data to device global memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
     //* Input data objects
-    buffer_in_block,
+    buffer_fblock,
   }, 0 /* 0: from host to device */));
 
   //* Launch the Kernel
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
   //* Copy Result from Device Global Memory to Host Local Memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
-    buffer_emax,
+    buffer_ublock,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
 
@@ -117,16 +117,39 @@ int main(int argc, char** argv)
             << std::endl;
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
-  // std::cout << "emax: " << *emax << std::endl;
+
+  // int32 expected[BLOCK_SIZE_2D] = {
+  //   536870912, 418115488, 197503776, 56585776, 
+  //   418115488, 325628672, 153816096, 44069048, 
+  //   197503776, 153816096, 72657576, 20816744, 
+  //   56585776, 44069048, 20816744, 5964097
+  // };
+
+  // int32 expected[BLOCK_SIZE_2D] = {
+  //   170183444, 92266196, 3119492, 12777032, 
+  //   92266197, 50022792, 1691257, 6927161, 
+  //   3119493, 1691256, 57181, 234206, 
+  //   12777032, 6927161, 234205, 959274,
+  // };
+
+  uint32 expected[BLOCK_SIZE_2D] = {
+    509992724, 444605396, 444605397, 118447768, 
+    7401092, 7401093, 7263113, 7263112, 
+    29821528, 29821528, 73901, 29292361, 
+    29292361, 300834, 300845, 1304446
+  };
 
   //* Validate against software implementation.
   bool matched = true;
-  for (uint i = 0; i < num_blocks; i++) {
-    matched = matched && emax[i] == 1;
-    std::cout << "emax[" << i << "]: " << emax[i] << std::endl;
-    if (!matched) {
-      std::cout << "Mismatch at index " << i << std::endl;
-      break;
+  for (size_t i = 0; i < total_blocks; i++) {
+    for (size_t j = 0; j < BLOCK_SIZE_2D; j++) {
+      if (ublock.at(i * BLOCK_SIZE_2D + j) != expected[j]) {
+        std::cout << "ublock[" << i << "][" << j << "] = " << ublock.at(i * BLOCK_SIZE_2D + j)
+                  << " != " << expected[j] << std::endl;
+        matched = false;
+      } else {
+        std::cout << "ublock[" << i << "][" << j << "] = " << ublock.at(i * BLOCK_SIZE_2D + j) << std::endl;
+      }
     }
   }
 

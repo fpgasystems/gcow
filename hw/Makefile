@@ -59,6 +59,7 @@ TEST_GATHER_SRC := $(TEST_DIR)/test_gather.cpp $(KERNEL_SRC)
 TEST_WRITES_SRC := $(TEST_DIR)/test_writes.cpp $(KERNEL_SRC)
 TEST_TRANSPOSE_SRC := $(TEST_DIR)/test_transpose.cpp $(KERNEL_SRC)
 TEST_EMBED_SRC := $(TEST_DIR)/test_embed.cpp $(KERNEL_SRC)
+TEST_INTEGRATION_SRC := $(TEST_DIR)/test_integration.cpp $(KERNEL_SRC)
 
 #* Targets
 HOST_EXE := $(KERNEL)_host
@@ -73,6 +74,7 @@ TEST_GATHER_EXE := gather_test
 TEST_WRITES_EXE := writes_test
 TEST_TRANSPOSE_EXE := transpose_test
 TEST_EMBED_EXE := embed_test
+TEST_INTEGRATION_EXE := integration_test
 
 XOS := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xo
 XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
@@ -156,6 +158,11 @@ $(TEST_EMBED_EXE): $(TEST_EMBED_SRC)
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Test Executable: $(TEST_EMBED_EXE)"
 
+$(TEST_INTEGRATION_EXE): $(TEST_INTEGRATION_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_INTEGRATION_EXE)"
+
 $(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
@@ -204,6 +211,10 @@ run_embed_test: $(XCLBIN) $(TEST_EMBED_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=embed`
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_EMBED_EXE) $(XCLBIN)
 
+run_integration_test: $(XCLBIN) $(TEST_INTEGRATION_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=integration`
+	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_INTEGRATION_EXE) $(XCLBIN)
+
 run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
 	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)
 
@@ -220,6 +231,9 @@ clean:
 cleanall: clean
 	-$(RM) -rf _x.* .Xil .run
 	-$(RM) -rf $(XCLBIN_DIR)
+
+cleanlogs:
+	-$(RM) -rf *.log *.wcfg *.wdb 
 
 format:
 	astyle --style=linux --indent=spaces=2 -S --max-code-length=80 src/*.cpp include/*.hpp stages/*.cpp tests/*.cpp
