@@ -27,7 +27,7 @@ int main(int argc, char** argv)
   assert(in_dim == get_input_dimension(in_specs));
   std::vector<size_t, aligned_allocator<size_t>> in_shape(shape, shape + in_dim);
 
-  std::cout << "Input specs:" << std::endl;
+  std::cout << "Input specs" << std::endl;
   std::cout << "dtype:\t\t" << in_specs.dtype << std::endl;
   std::cout << "nx:\t\t" << in_specs.nx << std::endl;
   std::cout << "ny:\t\t" << in_specs.ny << std::endl;
@@ -38,8 +38,12 @@ int main(int argc, char** argv)
   std::cout << "input size:\t" << input_size << std::endl;
   std::cout << "input dim:\t" << in_dim << std::endl;
 
-  std::vector<float, aligned_allocator<float>> in_fp_gradients(input_size);
+  std::vector<float, aligned_allocator<float>> in_fp_gradients(input_size, 0.0);
   get_input_2d(in_fp_gradients.data(), dim);
+  // //* Print input data.
+  // for (size_t i = 0; i < input_size; i++) {
+  //   std::cout << in_fp_gradients[i] << " ";
+  // }
   std::cout << "input floats:\t" << in_fp_gradients.size() << std::endl;
 
   //* Initialize output.
@@ -48,7 +52,7 @@ int main(int argc, char** argv)
   std::cout << "Max output bytes:\t" << max_output_bytes << std::endl;
 
   std::vector<stream_word, aligned_allocator<stream_word>> out_zfp_gradients(
-        max_output_bytes / sizeof(stream_word));
+        max_output_bytes / sizeof(stream_word), 0);
   std::cout << "Output buffer size:\t" <<
             out_zfp_gradients.size() << std::endl;
 

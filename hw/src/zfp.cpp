@@ -50,7 +50,7 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   hls::stream<uint, 32> bemax;
   hls::stream<uint, 32> maxprec;
   hls::stream<fblock_2d_t, 512> fblock_relay;
-  compute_block_exponent_2d(total_blocks, fblock, output, emax, maxprec, bemax, fblock_relay);
+  compute_block_exponent_2d(total_blocks, fblock, output, emax, bemax, maxprec, fblock_relay);
 
   //^ Step 3: Cast floats to integers.
   hls::stream<iblock_2d_t, 512> iblock;

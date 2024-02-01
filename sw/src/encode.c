@@ -361,7 +361,8 @@ uint encode_all_bitplanes(stream *const s, const uint32 *const ublock,
 
     //^ Step 2: encode first n bits of bit plane.
     bits += n;
-    x = stream_write_bits(s, x, n);
+    stream_write_bits(s, x, n);
+    x >>= n;
 
     //^ Step 3: unary run-length encode remainder of bit plane.
     for (; n < block_size; x >>= 1, n++) {

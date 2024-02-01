@@ -26,11 +26,11 @@ void drain_write_queue_fsm(
       request_buf = write_queue.read();
       //* Using the block id from the request to determine the current block.
       //& assert(request_buf.block_id == block_id);
-      // block_id = request_buf.block_id;
-      // if (request_buf.index != index++) {
-      //   //* Verify the order of the write requests within a block for debugging (validated).
-      //   continue;
-      // }
+      block_id = request_buf.block_id;
+      if (request_buf.index != index++) {
+        //* Verify the order of the write requests within a block for debugging (validated).
+        continue;
+      }
 
       if (request_buf.nbits > 1) {
         if (request_buf.value > 0) {

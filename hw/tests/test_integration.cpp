@@ -16,21 +16,21 @@ int main(int argc, char** argv)
   cl_int err;
 
   //* Initialize input.
-  std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D);
-  size_t nx = 4;
-  size_t ny = 4;
+  std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D, 0.0);
+  size_t n = 4;
+  size_t nx = n;
+  size_t ny = n;
 
   for (size_t j = 0; j < ny; j++)
     for (size_t i = 0; i < nx; i++) {
       double x = 2.0 * i / nx;
       double y = 2.0 * j / ny;
-      fblock[i + nx * j] = (float)exp(-(x * x + y *
-                                        y)); // (float)(x + 100 * y + 3.1415926);
+      fblock[i + nx * j] = (float)exp(-(x * x + y * y));
     }
   std::cout << "input floats:\t" << fblock.size() << std::endl;
 
   //* Initialize output.
-  size_t total_blocks = 3;
+  size_t total_blocks = 1;
   std::vector<uint32, aligned_allocator<uint32>> ublock(BLOCK_SIZE_2D*total_blocks);
 
   /* OPENCL HOST CODE AREA START */
@@ -132,12 +132,18 @@ int main(int argc, char** argv)
   //   12777032, 6927161, 234205, 959274,
   // };
 
+  //* Expected 3-block output for dim=4x4.
   uint32 expected[BLOCK_SIZE_2D] = {
     509992724, 444605396, 444605397, 118447768, 
     7401092, 7401093, 7263113, 7263112, 
     29821528, 29821528, 73901, 29292361, 
     29292361, 300834, 300845, 1304446
   };
+
+  // //* Expected single-block output for dim=3x3.
+  // uint32 expected[BLOCK_SIZE_2D] = {
+  //   462604581, 104049822, 461851134, 110467290, 47986086, 230720545, 47262228, 16676584, 27041915, 3113022, 23275410, 24462429, 29334312, 62007498, 7458168, 64915459
+  // };
 
   //* Validate against software implementation.
   bool matched = true;

@@ -18,28 +18,42 @@ int main(int argc, char** argv)
 
   //* Initialize input.
   std::vector<uint32, aligned_allocator<uint32>> ublock = {
-    509992724, 444605396, 444605397, 118447768, 
-    7401092, 7401093, 7263113, 7263112, 
-    29821528, 29821528, 73901, 29292361, 
-    29292361, 300834, 300845, 1304446
+    //* 3-block input for dim=4x4.
+    // 509992724, 444605396, 444605397, 118447768, 
+    // 7401092, 7401093, 7263113, 7263112, 
+    // 29821528, 29821528, 73901, 29292361, 
+    // 29292361, 300834, 300845, 1304446
+
+    //* 1-block input for dim=3x3.
+    462604581, 104049822, 461851134, 110467290, 47986086, 230720545, 47262228, 16676584, 27041915, 3113022, 23275410, 24462429, 29334312, 62007498, 7458168, 64915459
   };
 
   // std::vector<uint32, aligned_allocator<uint32>> ublock = {
-  //   2002158, 6736799, 2736739, 462686,
-  //   28905, 28910, 90992, 28371,
-  //   116400, 116490, 388, 514420,
-  //   114423, 1375, 1195, 6066
+  //   1992158, 1736739, 1736739, 462686,
+  //   28905, 28910, 28371, 28371,
+  //   116490, 116490, 288, 114420,
+  //   114423, 1175, 1175, 5095
   // };
 
-  ptrdiff_t stream_idx_host = 3;
-  // uint64 expected[stream_idx_host] = {
-  //   12711260835255415041UL, 5058120776611336133UL, 9096252834960252658UL, 
-  //   7789501227241241664UL, 10487902231007609841UL, 2274063208740063164UL, 
-  //   6559061325237698320UL, 2621975557751902460UL, 280285426033304047UL
-  // };
-  uint64 expected[] = {
-    12711260835255415041UL, 5058120776611336133UL, 4484566816532864754UL
+  size_t total_blocks = 1;
+  ptrdiff_t stream_idx_host = 4;
+  uint64 expected[stream_idx_host] = {
+    //* Results of 3 blocks (dim=4x4).
+    // 12711260835255415041UL, 5058120776611336133UL, 9096252834960252658UL, 
+    // 7789501227241241664UL, 10487902231007609841UL, 2274063208740063164UL, 
+    // 6559061325237698320UL, 2621975557751902460UL, 280285426033304047UL
+
+    //* Results of 1 blocks (dim=3x3).
+    16801526952253288705UL, 14905775768776052717UL, 17471068502950714503UL, 432474UL
   };
+  //* Results of 1 block.
+  // uint64 expected[] = {
+  //   12711260835255415041UL, 5058120776611336133UL, 4484566816532864754UL
+  // };
+
+  // uint64 expected[] = {
+  //   7455816852505100545UL, 432UL
+  // };
 
   // ptrdiff_t stream_idx_host = 2;
   // uint64 expected[] = {
@@ -141,7 +155,6 @@ int main(int argc, char** argv)
   std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
-  size_t total_blocks = 1;
   int arg_counter = 0;
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_ublock));
@@ -221,6 +234,8 @@ int main(int argc, char** argv)
       std::cout << "out_data[" << i << "] = " << out << std::endl;
     }
   }
+
+  std::cout << "Output elements: " << stream_idx << std::endl;
 
   for (int i=0; i < stream_idx; i++) {
     std::bitset<64> out(out_data.at(i));

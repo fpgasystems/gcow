@@ -52,8 +52,8 @@ extern "C" {
     // await_fsm(write_fsm_finished);
 
     zfp_output output;
-    // double tolerance = 1e-3;
-    // double error = set_zfp_output_accuracy(output, tolerance);
+    double tolerance = 1e-3;
+    double error = set_zfp_output_accuracy(output, tolerance);
 
     int emax = 1;
     uint prec = get_precision(emax, output.maxprec, output.minexp, 2);
