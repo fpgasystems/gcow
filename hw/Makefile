@@ -173,50 +173,50 @@ $(EMCONFIG_FILE):
 
 run_emax_test: $(XCLBIN) $(TEST_EMAX_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=emax`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_EMAX_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_EMAX_EXE) $(XCLBIN)
 
 run_cast_test: $(XCLBIN) $(TEST_CAST_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=cast`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_CAST_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_CAST_EXE) $(XCLBIN)
 
 run_decorrelate_test: $(XCLBIN) $(TEST_DECORRELATE_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=decorrelate`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_DECORRELATE_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_DECORRELATE_EXE) $(XCLBIN)
 
 run_reorder_test: $(XCLBIN) $(TEST_REORDER_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=reorder`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_REORDER_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_REORDER_EXE) $(XCLBIN)
 
 run_bitplane_test: $(XCLBIN) $(TEST_BITPLANE_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=bitplane`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_BITPLANE_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_BITPLANE_EXE) $(XCLBIN)
 
 run_encblock_test: $(XCLBIN) $(TEST_ENCBLOCK_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=encblock`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ENCBLOCK_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_ENCBLOCK_EXE) $(XCLBIN)
 
 run_gather_test: $(XCLBIN) $(TEST_GATHER_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=gather`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_GATHER_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_GATHER_EXE) $(XCLBIN)
 
 run_writes_test: $(XCLBIN) $(TEST_WRITES_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=writes`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_WRITES_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_WRITES_EXE) $(XCLBIN)
 
 run_transpose_test: $(XCLBIN) $(TEST_TRANSPOSE_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=transpose`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_TRANSPOSE_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_TRANSPOSE_EXE) $(XCLBIN)
 
 run_embed_test: $(XCLBIN) $(TEST_EMBED_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=embed`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_EMBED_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_EMBED_EXE) $(XCLBIN)
 
 run_integration_test: $(XCLBIN) $(TEST_INTEGRATION_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=integration`
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_INTEGRATION_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_INTEGRATION_EXE) $(XCLBIN)
 
 run_zfp_test: $(XCLBIN) $(TEST_ZFP_EXE) $(EMCONFIG_FILE)
-	export XCL_EMULATION_MODE=hw_emu; ./$(TEST_ZFP_EXE) $(XCLBIN)
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_ZFP_EXE) $(XCLBIN)
 
 run: $(XCLBIN) $(HOST_EXE) $(EMCONFIG_FILE)
 ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))

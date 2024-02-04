@@ -70,21 +70,21 @@ void gather_2d_block(float *block, const float *raw,
 }
 
 void gather_partial_2d_block(float *block, const float *raw,
-                             size_t nx, size_t ny,
+                             size_t bx, size_t by,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
   size_t x, y;
-  for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
-    for (x = 0; x < nx; x++, raw += sx) {
+  for (y = 0; y < by; y++, raw += sy - (ptrdiff_t)bx * sx) {
+    for (x = 0; x < bx; x++, raw += sx) {
       block[4 * y + x] = *raw;
       // printf("Gathering value: %f\n", *raw);
     }
     //* Pad horizontally to 4.
-    pad_partial_block(block + 4 * y, nx, 1);
+    pad_partial_block(block + 4 * y, bx, 1);
   }
   for (x = 0; x < 4; x++)
     //* Pad vertically to 4 (stride = 4).
-    pad_partial_block(block + x, ny, 4);
+    pad_partial_block(block + x, by, 4);
 }
 
 void gather_4d_block(float *block, const float *raw,

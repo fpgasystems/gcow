@@ -1,5 +1,6 @@
 #include "types.hpp"
 #include "stream.hpp"
+#include <bitset>
 
 
 // hls::stream<write_request_t, 1024*4> g_write_queue; /* write request for all blocks */
@@ -35,12 +36,19 @@ void drain_write_queue_fsm(
       if (request_buf.nbits > 1) {
         if (request_buf.value > 0) {
           stream_write_bits(s, request_buf.value, request_buf.nbits);
+          // std::bitset<64> val(request_buf.value);
+          // std::cout << "write_bits: " << val << " (" << request_buf.nbits << " bits)" << std::endl;
         } else {
           //* Zero paddings.
           stream_pad(s, request_buf.nbits);
+          // std::cout << "pad: " << 0 << " (" << request_buf.nbits << " bits)" << std::endl;
         }
       } else if (request_buf.nbits == 1) {
-        stream_write_bit(s, request_buf.value);
+        //! Must extract the least significant bit because the value is a 64-bit integer.
+        //! E.g., value = 48(0b110000) -> bit = 0, otherwise, `stream_write_bit` handles it wrong.
+        uint bit = request_buf.value & stream_word(1);
+        stream_write_bit(s, bit);
+        // std::cout << "write_bit: " << bit << std::endl;
       } else {
         //* Empty request signals the end of an encoding stage, 
         //* expecting the `last` flag to be set.

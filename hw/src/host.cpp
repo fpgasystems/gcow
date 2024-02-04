@@ -20,9 +20,9 @@ int main(int argc, char** argv)
   std::cout << std::endl << "--------------------------" << std::endl;
 
   //* Initialize input.
-  size_t dim = std::stoi(argv[2]);
+  size_t size = std::stoi(argv[2]);
+  size_t shape[DIM_MAX] = {size, size};
   size_t in_dim = 2;
-  size_t shape[DIM_MAX] = {dim, dim};
   zfp_input in_specs(dtype_float, shape, in_dim);
   assert(in_dim == get_input_dimension(in_specs));
   std::vector<size_t, aligned_allocator<size_t>> in_shape(shape, shape + in_dim);
@@ -39,7 +39,7 @@ int main(int argc, char** argv)
   std::cout << "input dim:\t" << in_dim << std::endl;
 
   std::vector<float, aligned_allocator<float>> in_fp_gradients(input_size, 0.0);
-  get_input_2d(in_fp_gradients.data(), dim);
+  get_input_2d(in_fp_gradients.data(), size);
   // //* Print input data.
   // for (size_t i = 0; i < input_size; i++) {
   //   std::cout << in_fp_gradients[i] << " ";
@@ -167,16 +167,16 @@ int main(int argc, char** argv)
   
   //* Validate against software implementation.
   std::stringstream zfpf;
-  if (dim > 1e4)
-    zfpf << "tests/data/compressed_2d_" << dim << "_large.zfp";
+  if (size > 1e4)
+    zfpf << "tests/data/compressed_2d_" << size << "_large.zfp";
   else
-    zfpf << "tests/data/compressed_2d_" << dim << ".zfp";
+    zfpf << "tests/data/compressed_2d_" << size << ".zfp";
 
   std::stringstream gcowf;
-  if (dim > 1e4)
-    gcowf << "tests/data/compressed_2d_" << dim << "_large.gcow";
+  if (size > 1e4)
+    gcowf << "tests/data/compressed_2d_" << size << "_large.gcow";
   else
-    gcowf << "tests/data/compressed_2d_" << dim << ".gcow";
+    gcowf << "tests/data/compressed_2d_" << size << ".gcow";
 
   //* Dump the compressed data to file.
   FILE *fp = fopen(gcowf.str().c_str(), "wb");

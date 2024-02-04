@@ -5,6 +5,7 @@
 
 #include "host.hpp"
 #include "types.hpp"
+#include <bitset>
 
 
 int main(int argc, char** argv)
@@ -17,7 +18,7 @@ int main(int argc, char** argv)
 
   //* Initialize input.
   std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D, 0.0);
-  size_t n = 4;
+  size_t n = 3;
   size_t nx = n;
   size_t ny = n;
 
@@ -27,11 +28,14 @@ int main(int argc, char** argv)
       double y = 2.0 * j / ny;
       fblock[i + nx * j] = (float)exp(-(x * x + y * y));
     }
-  std::cout << "input floats:\t" << fblock.size() << std::endl;
+  std::cout << "input floats:\t" << nx*ny << std::endl;
 
   //* Initialize output.
   size_t total_blocks = 1;
+  size_t max_bytes = 1000; //* Does not matter for this test, just a bound.
   std::vector<uint32, aligned_allocator<uint32>> ublock(BLOCK_SIZE_2D*total_blocks);
+  std::vector<stream_word, aligned_allocator<stream_word>> out_data(
+        max_bytes / sizeof(stream_word));
 
   /* OPENCL HOST CODE AREA START */
   std::cout << std::endl << "--------------------------" << std::endl;
@@ -69,13 +73,26 @@ int main(int argc, char** argv)
               BLOCK_SIZE_2D*sizeof(float),
               fblock.data(),
               &err));
-
+  OCL_CHECK(err,
+            cl::Buffer buffer_out_data(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              max_bytes,
+              out_data.data(),
+              &err));
+  ptrdiff_t stream_idx = 0;
+  OCL_CHECK(err,
+            cl::Buffer buffer_stream_idx(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              sizeof(ptrdiff_t),
+              &stream_idx,
+              &err));
   OCL_CHECK(err,
             cl::Buffer buffer_ublock(
               context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
               total_blocks*BLOCK_SIZE_2D*sizeof(uint32),
               ublock.data(),
               &err));
+
 
   std::cout << "Finished allocating buffers\n";
 
@@ -85,6 +102,10 @@ int main(int argc, char** argv)
             err = kernel.setArg(arg_counter++, buffer_fblock));
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, total_blocks));
+  OCL_CHECK(err,
+            err = kernel.setArg(arg_counter++, buffer_out_data));
+  OCL_CHECK(err,
+            err = kernel.setArg(arg_counter++, buffer_stream_idx));
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_ublock));
 
@@ -105,6 +126,8 @@ int main(int argc, char** argv)
   //* Copy Result from Device Global Memory to Host Local Memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
+    buffer_out_data,
+    buffer_stream_idx,
     buffer_ublock,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
@@ -118,45 +141,56 @@ int main(int argc, char** argv)
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
 
-  // int32 expected[BLOCK_SIZE_2D] = {
-  //   536870912, 418115488, 197503776, 56585776, 
-  //   418115488, 325628672, 153816096, 44069048, 
-  //   197503776, 153816096, 72657576, 20816744, 
-  //   56585776, 44069048, 20816744, 5964097
-  // };
 
-  // int32 expected[BLOCK_SIZE_2D] = {
-  //   170183444, 92266196, 3119492, 12777032, 
-  //   92266197, 50022792, 1691257, 6927161, 
-  //   3119493, 1691256, 57181, 234206, 
-  //   12777032, 6927161, 234205, 959274,
-  // };
-
-  //* Expected 3-block output for dim=4x4.
-  uint32 expected[BLOCK_SIZE_2D] = {
-    509992724, 444605396, 444605397, 118447768, 
-    7401092, 7401093, 7263113, 7263112, 
-    29821528, 29821528, 73901, 29292361, 
-    29292361, 300834, 300845, 1304446
-  };
-
-  // //* Expected single-block output for dim=3x3.
+  // //* Expected 3-block output for dim=4x4.
   // uint32 expected[BLOCK_SIZE_2D] = {
-  //   462604581, 104049822, 461851134, 110467290, 47986086, 230720545, 47262228, 16676584, 27041915, 3113022, 23275410, 24462429, 29334312, 62007498, 7458168, 64915459
+  //   282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
   // };
+
+  // //* Validate against software implementation.
+  // bool matched = true;
+  // for (size_t i = 0; i < total_blocks; i++) {
+  //   for (size_t j = 0; j < BLOCK_SIZE_2D; j++) {
+  //     if (ublock.at(i * BLOCK_SIZE_2D + j) != expected[j]) {
+  //       std::cout << "ublock[" << i << "][" << j << "] = " << ublock.at(i * BLOCK_SIZE_2D + j)
+  //                 << " != " << expected[j] << std::endl;
+  //       matched = false;
+  //     } else {
+  //       std::cout << "ublock[" << i << "][" << j << "] = " << ublock.at(i * BLOCK_SIZE_2D + j) << std::endl;
+  //     }
+  //   }
+  // }
+
+  ptrdiff_t stream_idx_host = 4;
+  uint64 expected[stream_idx_host] = {
+    //* Results of 3 blocks (dim=4x4).
+    // 12711260835255415041UL, 5058120776611336133UL, 9096252834960252658UL, 
+    // 7789501227241241664UL, 10487902231007609841UL, 2274063208740063164UL, 
+    // 6559061325237698320UL, 2621975557751902460UL, 280285426033304047UL
+
+    //* Results of 1 blocks (dim=3x3).
+    7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
+  };
 
   //* Validate against software implementation.
   bool matched = true;
-  for (size_t i = 0; i < total_blocks; i++) {
-    for (size_t j = 0; j < BLOCK_SIZE_2D; j++) {
-      if (ublock.at(i * BLOCK_SIZE_2D + j) != expected[j]) {
-        std::cout << "ublock[" << i << "][" << j << "] = " << ublock.at(i * BLOCK_SIZE_2D + j)
-                  << " != " << expected[j] << std::endl;
-        matched = false;
-      } else {
-        std::cout << "ublock[" << i << "][" << j << "] = " << ublock.at(i * BLOCK_SIZE_2D + j) << std::endl;
-      }
+  for (int i = 0; i < stream_idx_host; i++) {
+    std::bitset<64> out(out_data.at(i));
+    std::bitset<64> val(expected[i]);
+    if (out_data.at(i) != expected[i]) {
+      std::cout << "out_data[" << i << "] = " << out
+                << " != " << val << std::endl;
+      matched = false;
+    } else {
+      std::cout << "out_data[" << i << "] = " << out << std::endl;
     }
+  }
+
+  std::cout << "Output words: " << stream_idx << std::endl;
+
+  for (int i=0; i < stream_idx; i++) {
+    std::bitset<64> out(out_data.at(i));
+    std::cout << "out_data[" << i << "] = " << out << std::endl;
   }
 
   std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;

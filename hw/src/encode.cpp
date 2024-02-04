@@ -10,6 +10,7 @@
 #include "types.hpp"
 #include "io.hpp"
 
+#include <bitset>
 
 /**
  * @brief Pad a partial row/column to 4 values.
@@ -63,14 +64,13 @@ void pad_partial_block(volatile float *block, size_t n, ptrdiff_t s)
   //* The padding values won't be read until they are filled.
 }
 
-void gather_2d_block(hls::stream<float> fblock[BLOCK_SIZE_2D], const float *raw,
+void gather_2d_block(float *block, const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
-LOOP_GATHER_2D_BLOCK:
-  for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
-LOOP_GATHER_2D_BLOCK_INNER:
-    for (size_t x = 0, i = 0; x < 4; x++, raw += sx, i++) {
-      fblock[i] << *raw;
+  gather_2d_outer: for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
+    gather_2d_inner: for (size_t x = 0; x < 4; x++, raw += sx) {
+      *block++ = *raw;
+      // printf("Gathering value: %f\n", *raw);
     }
 }
 
@@ -79,10 +79,9 @@ void gather_partial_2d_block(volatile float *block, volatile const float *raw,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
   size_t x, y;
-LOOP_GATHER_PARTIAL_2D_BLOCK:
+  gather_partial_2d_outer: 
   for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
-LOOP_GATHER_PARTIAL_2D_BLOCK_INNER:
-    for (x = 0; x < nx; x++, raw += sx) {
+    gather_partial_2d_inner: for (x = 0; x < nx; x++, raw += sx) {
       block[4 * y + x] = *raw;
     }
     //* Pad horizontally to 4.
@@ -448,12 +447,17 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
     //^ Step 2: encode first n bits of bit plane.
     bits += n;
     write_queue.write( write_request_t(block_id, index++, n, x, false) );
+    // if (n > 0) {
+    //   std::bitset<64> b(x);
+    //   std::cout << "Encoded " << n << " bits: " << b << std::endl;
+    // }
     x >>= n;
 
     //^ Step 3: unary run-length encode remainder of bit plane.
     all_bitplanes_embed_loop: for (; n < block_size; x >>= 1, n++) {
       bit = !!x;
       write_queue.write( write_request_t(block_id, index++, 1, bit, false) );
+      // std::cout << "Encoded: " << bit << std::endl;
       bits++;
       // stream_write_bit(s, bit, &bit);
       if (!bit) {
@@ -465,6 +469,7 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
         //& `x & 1u` is used to extract the least significant (right-most) bit of `x`.
         bit = x & stream_word(1);
         write_queue.write( write_request_t(block_id, index++, 1, bit, false) );
+        // std::cout << "Encoded: " << bit << std::endl;
         bits++;
         // stream_write_bit(s, bit, &bit);
         if (bit) {
@@ -577,35 +582,15 @@ void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input)
   partition_blocks_outer: for (size_t y = 0; y < ny; y += 4) {
     partition_blocks_inner: for (size_t x = 0, block_id = 0; x < nx; x += 4, block_id++) {
       const float *raw = input.data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
-      size_t bx = MIN(nx - x, 4u);
-      size_t by = MIN(ny - y, 4u);
       fblock_2d_t fblock_buf;
       fblock_buf.id = block_id;
+      size_t bx = MIN(nx - x, 4u);
+      size_t by = MIN(ny - y, 4u);
 
-      collect_block_outer: for (size_t i = 0; i < by; i++, raw += sy - (ptrdiff_t)bx * sx) {
-        collect_block_inner: for (size_t j = 0; j < bx; j++, raw += sx) {
-          #pragma HLS PIPELINE II=1
-          fblock_buf.data[4 * i + j] = *raw;
-        }
-      }
-      //* Padding partial blocks (each padding operation involves multiple reads/writes -> II ≈ 4 or 5)
-      if (bx < 4) {
-        //* Fully unrolled, giving each statement sperate HW unit. 
-        // #pragma HLS PIPELINE II=1
-        pad_x_loop: for (size_t i = 0; i < by; i++) {
-          // #pragma HLS UNROLL factor=4
-          //* Pad horizontally to 4.
-          pad_partial_block(fblock_buf.data + 4 * i, bx, 1);
-        }
-      }
-
-      if (by < 4) {
-        // #pragma HLS PIPELINE II=1
-        pad_y_loop: for (size_t j = 0; j < 4; j++) {
-          // #pragma HLS UNROLL factor=4
-          //* Pad vertically to 4 (stride = 4).
-          pad_partial_block(fblock_buf.data + j, by, 4);
-        }
+      if (bx == 4 && by == 4) {
+        gather_2d_block(fblock_buf.data, raw, sx, sy);
+      } else {
+        gather_partial_2d_block(fblock_buf.data, raw, bx, by, sx, sy);
       }
 
       fblock.write(fblock_buf);

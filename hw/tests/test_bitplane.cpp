@@ -25,7 +25,7 @@ int main(int argc, char** argv)
     // 29292361, 300834, 300845, 1304446
 
     //* 1-block input for dim=3x3.
-    462604581, 104049822, 461851134, 110467290, 47986086, 230720545, 47262228, 16676584, 27041915, 3113022, 23275410, 24462429, 29334312, 62007498, 7458168, 64915459
+    282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
   };
 
   // std::vector<uint32, aligned_allocator<uint32>> ublock = {
@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     // 6559061325237698320UL, 2621975557751902460UL, 280285426033304047UL
 
     //* Results of 1 blocks (dim=3x3).
-    16801526952253288705UL, 14905775768776052717UL, 17471068502950714503UL, 432474UL
+    7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
   };
   //* Results of 1 block.
   // uint64 expected[] = {
@@ -235,7 +235,7 @@ int main(int argc, char** argv)
     }
   }
 
-  std::cout << "Output elements: " << stream_idx << std::endl;
+  std::cout << "Output words: " << stream_idx << std::endl;
 
   for (int i=0; i < stream_idx; i++) {
     std::bitset<64> out(out_data.at(i));

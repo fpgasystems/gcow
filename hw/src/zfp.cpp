@@ -68,7 +68,5 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   fwd_reorder_int2uint_2d(total_blocks, bemax_relay2, iblock_relay, ublock, bemax_relay3);
 
   //^ Step 6: Bit plane encoding.
-  hls::stream<uint, 32> minbits;
-  hls::stream<uint, 32> encoded_bits_relay;
   encode_bitplanes_2d(total_blocks, bemax_relay3, maxprec, ublock, output, write_queue);
 }

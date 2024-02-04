@@ -201,33 +201,41 @@ TEST(STAGES, GATHER_2D)
 TEST(STAGES, EMAX)
 {
   float raw[BLOCK_SIZE_2D]; //* 4x4 source array
-  size_t nx = 4;
-  size_t ny = 4;
+  float fblock[BLOCK_SIZE_2D];
+  for (int i = 0; i < BLOCK_SIZE_2D; i++) {
+    raw[i] = 0.0;
+  }
+  size_t n = 3;
+  size_t nx = n;
+  size_t ny = n;
+
 
   for (size_t j = 0; j < ny; j++)
     for (size_t i = 0; i < nx; i++)
       raw[i + nx * j] = (float)(i + 4 * j + 1);
 
-  EXPECT_EQ(get_block_exponent((const float*)raw, BLOCK_SIZE_2D), 5);
+  gather_partial_2d_block(fblock, raw, nx, ny, 1, nx);
+  EXPECT_EQ(get_block_exponent((const float*)fblock, BLOCK_SIZE_2D), 4);
 
   for (size_t j = 0; j < ny; j++)
     for (size_t i = 0; i < nx; i++) {
       double x = 2.0 * i / nx;
       double y = 2.0 * j / ny;
-      raw[i + nx * j] = (float)exp(-(x * x + y *
-                                     y)); // (float)(x + 100 * y + 3.1415926);
+      raw[i + nx * j] = (float)exp(-(x * x + y *y));
     }
 
-  EXPECT_EQ(get_block_exponent((const float*)raw, BLOCK_SIZE_2D), 1);
+  gather_partial_2d_block(fblock, raw, nx, ny, 1, nx);
+  EXPECT_EQ(get_block_exponent((const float*)fblock, BLOCK_SIZE_2D), 1);
 }
 
 TEST(STAGES, CAST)
 {
-  float fblock[BLOCK_SIZE_2D]; //* 4x4 source array
+  float raw[BLOCK_SIZE_2D]; //* 4x4 source array
+  float fblock[BLOCK_SIZE_2D];
   int32 iblock[BLOCK_SIZE_2D];
   //* Set f/iblock to all 0's.
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
-    fblock[i] = 0.0;
+    raw[i] = 0.0;
     iblock[i] = 0;
   }
 
@@ -238,13 +246,15 @@ TEST(STAGES, CAST)
     for (size_t i = 0; i < nx; i++) {
       double x = 2.0 * i / nx;
       double y = 2.0 * j / ny;
-      fblock[i + nx * j] = (float)exp(-(x * x + y * y));
+      raw[i + nx * j] = (float)exp(-(x * x + y * y));
     }
   
+  gather_partial_2d_block(fblock, raw, nx, ny, 1, nx);
+
   //* Print out the fblock.
   printf("fblock: \n");
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
-    printf("%f, ", fblock[i]);
+    printf("%f, ", raw[i]);
     if ((i + 1) % 4 == 0) {
       printf("\n");
     }
@@ -264,9 +274,7 @@ TEST(STAGES, CAST)
   // };
 
   int32 expected[BLOCK_SIZE_2D] = {
-    536870912, 344231104, 90738336, 344231104, 
-    220714224, 58179640, 90738336, 58179640, 
-    15335986, 0, 0, 0, 0, 0, 0, 0,
+    536870912, 344231104, 90738336, 536870912, 344231104, 220714224, 58179640, 344231104, 90738336, 58179640, 15335986, 90738336, 536870912, 344231104, 90738336, 536870912
   };
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -284,9 +292,7 @@ TEST(STAGES, DECORRELATE)
   // };
 
   int32 iblock[BLOCK_SIZE_2D] = {
-    536870912, 344231104, 90738336, 344231104, 
-    220714224, 58179640, 90738336, 58179640, 
-    15335986, 0, 0, 0, 0, 0, 0, 0,
+    536870912, 344231104, 90738336, 536870912, 344231104, 220714224, 58179640, 344231104, 90738336, 58179640, 15335986, 90738336, 536870912, 344231104, 90738336, 536870912
   };
 
   fwd_decorrelate_2d_block(iblock);
@@ -299,7 +305,7 @@ TEST(STAGES, DECORRELATE)
   // };
 
   int32 expected[BLOCK_SIZE_2D] = {
-    109951205, 32398218, -36965278, 9134119, 109263018, 26511302, -36645356, 20268109, -54557727, -5623400, 18801294, -26355786, -2457622, 6981336, 3194152, -20350977
+    264985681, 11130684, -112192135, 66784103, 11130684, 467543, -4712614, 2805257, -112192135, -4712614, 47500961, -28275684, 66784104, 2805256, -28275684, 16831537  
   };
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
@@ -322,11 +328,8 @@ TEST(STAGES, REORDER)
   // };
 
   int32 iblock[BLOCK_SIZE_2D] = {
-    109951205, 32398218, -36965278, 9134119, 109263018, 26511302, -36645356, 20268109, -54557727, -5623400, 18801294, -26355786, -2457622, 6981336, 3194152, -20350977
+    264985681, 11130684, -112192135, 66784103, 11130684, 467543, -4712614, 2805257, -112192135, -4712614, 47500961, -28275684, 66784104, 2805256, -28275684, 16831537
   };
-
-  // int32 iblock[BLOCK_SIZE_2D] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-  //                                11, 12, 13, 14, 15, 16};
 
   uint32 ublock[BLOCK_SIZE_2D];
 
@@ -340,9 +343,8 @@ TEST(STAGES, REORDER)
   // };
   
    uint32 expected[BLOCK_SIZE_2D] = {
-    462604581, 104049822, 461851134, 110467290, 47986086, 230720545, 47262228, 16676584, 27041915, 3113022, 23275410, 24462429, 29334312, 62007498, 7458168, 64915459
+    282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
   };
-  // uint32 expected[BLOCK_SIZE_2D] = {1, 6, 5, 26, 7, 25, 27, 30, 4, 29, 31, 24, 18, 28, 19, 16};
 
   for (int i = 0; i < BLOCK_SIZE_2D; i++) {
     printf("%u, ", ublock[i]);
@@ -423,7 +425,7 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
     // 116490, 116490, 288, 114420,
     // 114423, 1175, 1175, 5095
     //* 1-block input for dim=3x3.
-    462604581, 104049822, 461851134, 110467290, 47986086, 230720545, 47262228, 16676584, 27041915, 3113022, 23275410, 24462429, 29334312, 62007498, 7458168, 64915459
+    282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
   };
 
   zfp_output *output = alloc_zfp_output();
@@ -467,7 +469,7 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   uint64 expected[] = {
     // 7455816852505100545UL, 432UL
     //* Expected single-block output for dim=3x3.
-    16801526952253288705UL, 14905775768776052717UL, 17471068502950714503UL, 432474UL
+    7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
   };
   uint total = 4;
 
