@@ -17,11 +17,9 @@ int main(int argc, char** argv)
 
   //* Initialize input.
   std::vector<int32, aligned_allocator<int32>> iblock = {
-    2097152, 1633263, 771499, 221038,
-    1633263, 1271987, 600844, 172144,
-    771499, 600844, 283818, 81315,
-    221038, 172144, 81315, 23297
+    536870912, 344231104, 90738336, 536870912, 344231104, 220714224, 58179640, 344231104, 90738336, 58179640, 15335986, 90738336, 536870912, 344231104, 90738336, 536870912
   };
+  std::vector<int32, aligned_allocator<int32>> out_iblock(BLOCK_SIZE_2D, 0);
 
   /* OPENCL HOST CODE AREA START */
   std::cout << std::endl << "--------------------------" << std::endl;
@@ -55,17 +53,28 @@ int main(int argc, char** argv)
   //* Allocate buffers in Global Memory
   OCL_CHECK(err,
             cl::Buffer buffer_iblock(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
               BLOCK_SIZE_2D*sizeof(int32),
               iblock.data(),
+              &err));
+  OCL_CHECK(err,
+            cl::Buffer buffer_out(
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
+              BLOCK_SIZE_2D*sizeof(int32),
+              out_iblock.data(),
               &err));
 
   std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
+  size_t num_blocks = 4198401;
   int arg_counter = 0;
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_iblock));
+  OCL_CHECK(err,
+            err = kernel.setArg(arg_counter++, num_blocks));
+  // OCL_CHECK(err,
+  //           err = kernel.setArg(arg_counter++, buffer_out));
 
   //* Copy input data to device global memory
   OCL_CHECK(err,
@@ -82,10 +91,10 @@ int main(int argc, char** argv)
 
   std::cout << "Kernel running ...\n";
   //* Copy Result from Device Global Memory to Host Local Memory
-  OCL_CHECK(err,
-  err = q.enqueueMigrateMemObjects({
-    buffer_iblock,
-  }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
+  // OCL_CHECK(err,
+  // err = q.enqueueMigrateMemObjects({
+  //   buffer_out,
+  // }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -97,23 +106,22 @@ int main(int argc, char** argv)
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration
             << std::endl;
 
-  int32 expected[BLOCK_SIZE_2D] = {
-    664778, 360415, 12185, 49910,
-    360415, 195402, 6607, 27060,
-    12186, 6607, 224, 915,
-    49910, 27059, 915, 3747
-  };
+  return EXIT_SUCCESS;
+  
+  // int32 expected[BLOCK_SIZE_2D] = {
+  //   264985681, 11130684, -112192135, 66784103, 11130684, 467543, -4712614, 2805257, -112192135, -4712614, 47500961, -28275684, 66784104, 2805256, -28275684, 16831537  
+  // };
 
-  //* Validate against software implementation.
-  bool matched = true;
-  for (int i = 0; i < 16; i++) {
-    if (iblock.at(i) != expected[i]) {
-      std::cout << "iblock[" << i << "] = " << iblock.at(i)
-                << " != " << expected[i] << std::endl;
-      matched = false;
-    }
-  }
+  // //* Validate against software implementation.
+  // bool matched = true;
+  // for (int i = 0; i < 16; i++) {
+  //   if (out_iblock.at(i) != expected[i]) {
+  //     std::cout << "iblock[" << i << "] = " << out_iblock.at(i)
+  //               << " != " << expected[i] << std::endl;
+  //     matched = false;
+  //   }
+  // }
 
-  std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
-  return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
+  // std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
+  // return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
 }

@@ -56,6 +56,48 @@ void compute_block_exponent_2d(
   hls::stream<uint> &out_maxprec,
   hls::stream<fblock_2d_t> &out_fblock);
 
+void compute_block_emax_2d(
+  size_t in_total_blocks,
+  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH], 
+  const zfp_output &output, 
+  hls::stream<int> out_emax[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH],
+  hls::stream<uint> out_maxprec[FIFO_WIDTH],
+  hls::stream<fblock_2d_t> out_fblock[FIFO_WIDTH]);
+
+void chunk_blocks_2d_par(
+  hls::stream<fblock_2d_t> fblock[FIFO_WIDTH], const zfp_input &input);
+
+void fwd_float2int_2d_par(
+  size_t in_total_blocks,
+  hls::stream<int> in_emax[FIFO_WIDTH],
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH]);
+
+void fwd_decorrelate_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> in_iblock[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH]);
+
+void fwd_reorder_int2uint_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> in_iblock[FIFO_WIDTH],
+  hls::stream<ublock_2d_t> out_ublock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH]);
+
+void encode_bitplanes_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<uint> in_maxprec[FIFO_WIDTH],
+  hls::stream<ublock_2d_t> in_ublock[FIFO_WIDTH],
+  zfp_output &output,
+  hls::stream<write_request_t> bitplane_queues[FIFO_WIDTH]);
+
 void fwd_float2int_2d(
   size_t in_total_blocks,
   hls::stream<int> &in_emax,

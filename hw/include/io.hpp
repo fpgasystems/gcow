@@ -20,6 +20,12 @@ void drain_write_queue_fsm(
   hls::stream<write_request_t> &write_queue,
   hls::stream<bit_t> &write_fsm_finished);
 
+void drain_write_queue_fsm_par(
+  size_t in_total_blocks,
+  stream &s,
+  hls::stream<write_request_t> write_queues[FIFO_WIDTH],
+  hls::stream<bit_t> &write_fsm_finished);
+
 void relay_scalers_2d(
   hls::stream<fblock_2d_t> &in_block, 
   hls::stream<float> &out_float);

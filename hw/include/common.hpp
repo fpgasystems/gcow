@@ -11,6 +11,8 @@
 #include <map>
 
 #define DIM_MAX 4 /* maximum number of array dimensions */
+#define FIFO_WIDTH 32
+#define FIFO_INDEX(x) ((x) & (FIFO_WIDTH - 1))
 
 /* default compression parameters */
 #define ZFP_MIN_BITS     1 /* minimum number of bits per block */

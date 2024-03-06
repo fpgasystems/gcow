@@ -10,22 +10,23 @@
 
 int main(int argc, char** argv)
 {
-  if (argc != 2) {
-    std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << std::endl;
+  if (argc != 3) {
+    std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << " <dim>" << std::endl;
     return EXIT_FAILURE;
   }
   cl_int err;
+  std::cout << std::endl << "--------------------------" << std::endl;
 
   //* Initialize input.
-  std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D, 0.0);
-  size_t n = 3;
+  size_t n = std::stoi(argv[2]);
   size_t nx = n;
   size_t ny = n;
+  std::vector<float, aligned_allocator<float>> fblock(BLOCK_SIZE_2D, 0.0);
 
   for (size_t j = 0; j < ny; j++)
     for (size_t i = 0; i < nx; i++) {
-      double x = 2.0 * i / nx;
-      double y = 2.0 * j / ny;
+      double x = 2.0 * i / (nx%4); //* Fix input distribution.
+      double y = 2.0 * j / (ny%4);
       fblock[i + nx * j] = (float)exp(-(x * x + y * y));
     }
   std::cout << "input floats:\t" << nx*ny << std::endl;

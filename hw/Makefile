@@ -32,6 +32,7 @@ VPP := v++
 KERNEL := gcow
 EMCONFIGUTIL := $(XILINX_VITIS)/bin/emconfigutil
 TARGET := hw_emu
+ENABLE_STALL_TRACE := yes
 PLATFORM := xilinx_u250_gen3x16_xdma_4_1_202210_1
 
 #* Directories
@@ -50,6 +51,7 @@ KERNEL_SRC := $(filter-out $(SRC_DIR)/host.cpp,$(KERNEL_SRC))
 HOST_SRC := $(SRC_DIR)/host.cpp $(SRC_DIR)/common.cpp
 TEST_ZFP_SRC := $(TEST_DIR)/test_zfp.cpp $(SRC_DIR)/common.cpp
 TEST_EMAX_SRC := $(TEST_DIR)/test_emax.cpp $(KERNEL_SRC)
+TEST_CHUNK_SRC := $(TEST_DIR)/test_chunk.cpp $(KERNEL_SRC)
 TEST_CAST_SRC := $(TEST_DIR)/test_cast.cpp $(KERNEL_SRC)
 TEST_DECORRELATE_SRC := $(TEST_DIR)/test_decorrelate.cpp $(KERNEL_SRC)
 TEST_REORDER_SRC := $(TEST_DIR)/test_reorder.cpp $(KERNEL_SRC)
@@ -65,6 +67,7 @@ TEST_INTEGRATION_SRC := $(TEST_DIR)/test_integration.cpp $(KERNEL_SRC)
 HOST_EXE := $(KERNEL)_host
 TEST_ZFP_EXE := zfp_test
 TEST_EMAX_EXE := emax_test
+TEST_CHUNK_EXE := chunk_test
 TEST_CAST_EXE := cast_test
 TEST_DECORRELATE_EXE := decorrelate_test
 TEST_REORDER_EXE := reorder_test
@@ -81,8 +84,9 @@ XCLBIN := $(XCLBIN_DIR)/$(KERNEL).$(TARGET).xclbin
 EMCONFIG_FILE := ./emconfig.json
 
 VPP_COMMON_OPTS := -g -t $(TARGET) --platform $(PLATFORM) -I$(INCLUDE_DIR) --config configs/$(KERNEL)_config.cfg --save-temps --report_level estimate
-CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(XILINX_VITIS_HLS)/include -I$(INCLUDE_DIR)
-LFLAGS := -L$(XILINX_XRT)/lib -lxilinxopencl -pthread -lrt
+# CFLAGS := -g -std=c++11 -I$(XILINX_XRT)/include -I$(XILINX_VITIS_HLS)/include -I/opt/xilinx/xrt_2022.1/include -I$(INCLUDE_DIR)
+CFLAGS := -g -std=c++11 -I/tools/Xilinx/Vitis_HLS/2022.1/include -I/opt/xilinx/xrt_2022.1/include/ -I$(INCLUDE_DIR)
+LFLAGS := -L/lib -lOpenCL -pthread -lrt
 NUMDEVICES := 1
 
 xclbin: $(XCLBIN)
@@ -92,6 +96,7 @@ host: $(HOST_EXE)
 all: host xclbin $(EMCONFIG_FILE)
 
 #*  Compile kernels into Xilinx object file.
+#TODO: Add include files to the dependencies.
 $(XOS): $(KERNEL_SRC)
 # $(RM) $@
 	mkdir -p $(XCLBIN_DIR)
@@ -112,6 +117,11 @@ $(TEST_EMAX_EXE): $(TEST_EMAX_SRC)
 	rm -f $@
 	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
 	@echo "Compiled Test Executable: $(TEST_EMAX_EXE)"
+
+$(TEST_CHUNK_EXE): $(TEST_CHUNK_SRC)
+	rm -f $@
+	g++ $(CFLAGS) -o $@ $+ $(LFLAGS)
+	@echo "Compiled Test Executable: $(TEST_CHUNK_EXE)"
 
 $(TEST_CAST_EXE): $(TEST_CAST_SRC)
 	rm -f $@
@@ -171,25 +181,54 @@ $(TEST_ZFP_EXE): $(TEST_ZFP_SRC)
 $(EMCONFIG_FILE):
 	$(EMCONFIGUTIL) --nd $(NUMDEVICES) --od . --platform $(PLATFORM)
 
+
 run_emax_test: $(XCLBIN) $(TEST_EMAX_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=emax`
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_EMAX_EXE) $(XCLBIN)
+else
+	./$(TEST_EMAX_EXE) $(XCLBIN)
+endif
+
+run_chunk_test: $(XCLBIN) $(TEST_CHUNK_EXE) $(EMCONFIG_FILE)
+#^ With `KERNEL=chunk`
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
+	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_CHUNK_EXE) $(XCLBIN)
+else
+	./$(TEST_CHUNK_EXE) $(XCLBIN)
+endif
 
 run_cast_test: $(XCLBIN) $(TEST_CAST_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=cast`
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_CAST_EXE) $(XCLBIN)
+else
+	./$(TEST_CAST_EXE) $(XCLBIN)
+endif
 
 run_decorrelate_test: $(XCLBIN) $(TEST_DECORRELATE_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=decorrelate`
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_DECORRELATE_EXE) $(XCLBIN)
+else
+	./$(TEST_DECORRELATE_EXE) $(XCLBIN)
+endif
 
 run_reorder_test: $(XCLBIN) $(TEST_REORDER_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=reorder`
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_REORDER_EXE) $(XCLBIN)
+else
+	./$(TEST_REORDER_EXE) $(XCLBIN)
+endif
 
 run_bitplane_test: $(XCLBIN) $(TEST_BITPLANE_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=bitplane`
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 	export XCL_EMULATION_MODE=$(TARGET); ./$(TEST_BITPLANE_EXE) $(XCLBIN)
+else
+	./$(TEST_BITPLANE_EXE) $(XCLBIN)
+endif
 
 run_encblock_test: $(XCLBIN) $(TEST_ENCBLOCK_EXE) $(EMCONFIG_FILE)
 #^ With `KERNEL=encblock`

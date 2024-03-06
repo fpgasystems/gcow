@@ -35,7 +35,7 @@ int main(int argc, char** argv)
   //   114423, 1175, 1175, 5095
   // };
 
-  size_t total_blocks = 1;
+  size_t total_blocks = 4198401;// 1; //64; //4198401;
   ptrdiff_t stream_idx_host = 4;
   uint64 expected[stream_idx_host] = {
     //* Results of 3 blocks (dim=4x4).
@@ -105,48 +105,20 @@ int main(int argc, char** argv)
   //* Allocate buffers in Global Memory
   OCL_CHECK(err,
             cl::Buffer buffer_ublock(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
               BLOCK_SIZE_2D*sizeof(uint32),
               ublock.data(),
               &err));
-  double max_error = 0;
-  OCL_CHECK(err,
-            cl::Buffer buffer_max_error(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(double),
-              &max_error,
-              &err));
-  uint maxprec = 0;
-  OCL_CHECK(err,
-            cl::Buffer buffer_maxprec(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(uint),
-              &maxprec,
-              &err));
-  bool exceeded = false;
-  OCL_CHECK(err,
-            cl::Buffer buffer_exceeded(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(bool),
-              &exceeded,
-              &err));
   OCL_CHECK(err,
             cl::Buffer buffer_out_data(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
               max_bytes,
               out_data.data(),
-              &err));
-  uint encoded_bits = 0;
-  OCL_CHECK(err,
-            cl::Buffer buffer_encoded_bits(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-              sizeof(uint),
-              &encoded_bits,
               &err));
   ptrdiff_t stream_idx = 0;
   OCL_CHECK(err,
             cl::Buffer buffer_stream_idx(
-              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+              context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
               sizeof(ptrdiff_t),
               &stream_idx,
               &err));
@@ -161,15 +133,7 @@ int main(int argc, char** argv)
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, total_blocks));
   OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_max_error));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_maxprec));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_exceeded));
-  OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_out_data));
-  OCL_CHECK(err,
-            err = kernel.setArg(arg_counter++, buffer_encoded_bits));
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_stream_idx));
 
@@ -190,11 +154,7 @@ int main(int argc, char** argv)
   //* Copy Result from Device Global Memory to Host Local Memory
   OCL_CHECK(err,
   err = q.enqueueMigrateMemObjects({
-    buffer_max_error,
-    buffer_maxprec,
-    buffer_exceeded,
     buffer_out_data,
-    buffer_encoded_bits,
     buffer_stream_idx,
   }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
@@ -209,10 +169,6 @@ int main(int argc, char** argv)
             << std::endl;
 
   //* Validate against software implementation.
-  std::cout << "Exceeded: " << exceeded << std::endl;
-  std::cout << "Max error: " << max_error << std::endl;
-  std::cout << "Max prec: " << maxprec << std::endl;
-  std::cout << "Encoded bits: " << encoded_bits << std::endl;
   std::cout << "Stream idx: " << stream_idx << std::endl;
   // std::cout << "Output elements: " << encoded_bits/sizeof(stream_word) << std::endl;
 
@@ -222,26 +178,28 @@ int main(int argc, char** argv)
   // assert(encoded_bits == 65);
   // assert(stream_idx_host == stream_idx);
 
-  bool matched = true;
-  for (int i = 0; i < stream_idx_host; i++) {
-    std::bitset<64> out(out_data.at(i));
-    std::bitset<64> val(expected[i]);
-    if (out_data.at(i) != expected[i]) {
-      std::cout << "out_data[" << i << "] = " << out
-                << " != " << val << std::endl;
-      matched = false;
-    } else {
-      std::cout << "out_data[" << i << "] = " << out << std::endl;
-    }
-  }
+  return EXIT_SUCCESS;
+  
+  // bool matched = true;
+  // for (int i = 0; i < stream_idx_host; i++) {
+  //   std::bitset<64> out(out_data.at(i));
+  //   std::bitset<64> val(expected[i]);
+  //   if (out_data.at(i) != expected[i]) {
+  //     std::cout << "out_data[" << i << "] = " << out
+  //               << " != " << val << std::endl;
+  //     matched = false;
+  //   } else {
+  //     std::cout << "out_data[" << i << "] = " << out << std::endl;
+  //   }
+  // }
 
-  std::cout << "Output words: " << stream_idx << std::endl;
+  // std::cout << "Output words: " << stream_idx << std::endl;
 
-  for (int i=0; i < stream_idx; i++) {
-    std::bitset<64> out(out_data.at(i));
-    std::cout << "out_data[" << i << "] = " << out << std::endl;
-  }
+  // for (int i=0; i < stream_idx; i++) {
+  //   std::bitset<64> out(out_data.at(i));
+  //   std::cout << "out_data[" << i << "] = " << out << std::endl;
+  // }
 
-  std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
-  return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
+  // std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
+  // return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
 }

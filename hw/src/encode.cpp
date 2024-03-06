@@ -42,7 +42,7 @@
 */
 void pad_partial_block(volatile float *block, size_t n, ptrdiff_t s)
 {
-#pragma HLS inline
+#pragma HLS INLINE
 
   switch (n) {
     case 0:
@@ -67,10 +67,14 @@ void pad_partial_block(volatile float *block, size_t n, ptrdiff_t s)
 void gather_2d_block(float *block, const float *raw,
                      ptrdiff_t sx, ptrdiff_t sy)
 {
+#pragma HLS INLINE
+
   gather_2d_outer: for (size_t y = 0; y < 4; y++, raw += sy - 4 * sx)
     gather_2d_inner: for (size_t x = 0; x < 4; x++, raw += sx) {
+      #pragma HLS PIPELINE II=1
+      //TODO: Burst read with batch size of 512.
+
       *block++ = *raw;
-      // printf("Gathering value: %f\n", *raw);
     }
 }
 
@@ -78,18 +82,28 @@ void gather_partial_2d_block(volatile float *block, volatile const float *raw,
                              size_t nx, size_t ny,
                              ptrdiff_t sx, ptrdiff_t sy)
 {
+#pragma HLS INLINE
+
   size_t x, y;
   gather_partial_2d_outer: 
   for (y = 0; y < ny; y++, raw += sy - (ptrdiff_t)nx * sx) {
-    gather_partial_2d_inner: for (x = 0; x < nx; x++, raw += sx) {
+    gather_partial_2d_inner: 
+    for (x = 0; x < nx; x++, raw += sx) {
+      #pragma HLS PIPELINE II=1
+
       block[4 * y + x] = *raw;
     }
     //* Pad horizontally to 4.
     pad_partial_block(block + 4 * y, nx, 1);
   }
-  for (x = 0; x < 4; x++)
+
+  pad_vertical_loop:
+  for (x = 0; x < 4; x++) {
+    #pragma HLS UNROLL factor=4
+
     //* Pad vertically to 4 (stride = 4).
     pad_partial_block(block + x, ny, 4);
+  }
 }
 
 void compute_block_exponent_2d(
@@ -101,7 +115,12 @@ void compute_block_exponent_2d(
   hls::stream<uint> &out_maxprec,
   hls::stream<fblock_2d_t> &out_fblock)
 {
-  emax_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+// #pragma HLS PIPELINE II=1
+  emax_block_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS UNROLL factor=64
+    
     //* Blocking read.
     fblock_2d_t fblock_buf = in_fblock.read();
     //* Immediately relay the read block to the next module.
@@ -110,7 +129,7 @@ void compute_block_exponent_2d(
     float emax = 0;
     //~ 1: Find the maximum floating point and return its exponent as the block exponent.
     emax_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
-      #pragma HLS pipeline II=2
+      #pragma HLS PIPELINE II=1
       float f = FABS(fblock_buf.data[i]);
       emax = MAX(emax, f);
     }
@@ -133,6 +152,53 @@ void compute_block_exponent_2d(
   }
 }
 
+
+void compute_block_emax_2d(
+  size_t in_total_blocks,
+  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH], 
+  const zfp_output &output, 
+  hls::stream<int> out_emax[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH],
+  hls::stream<uint> out_maxprec[FIFO_WIDTH],
+  hls::stream<fblock_2d_t> out_fblock[FIFO_WIDTH])
+{
+  emax_block_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS UNROLL factor=64
+    
+    uint fifo_idx = FIFO_INDEX(block_id);
+    //* Blocking read.
+    fblock_2d_t fblock_buf = in_fblock[fifo_idx].read();
+    //* Immediately relay the read block to the next module.
+    out_fblock[fifo_idx].write(fblock_buf);
+
+    float emax = 0;
+    //~ 1: Find the maximum floating point and return its exponent as the block exponent.
+    emax_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
+      #pragma HLS PIPELINE II=1
+      float f = FABS(fblock_buf.data[i]);
+      emax = MAX(emax, f);
+    }
+
+    //~ 2: Get the exponent of the maximum floating point.
+    int emax_out = -EBIAS;
+    if (emax > 0) {
+      //* Get exponent of emax.
+      FREXP(emax, &emax_out);
+      //* Clamp exponent in case x is subnormal; may still result in overflow.
+      //* E.g., smallest number: 2^(-126) = 1.1754944e-38, which is subnormal.
+      emax_out = MAX(emax_out, 1 - EBIAS);
+    }
+    uint maxprec = get_precision(emax_out, output.maxprec, output.minexp, 2);
+    uint biased_emax = (maxprec)? (uint)(emax_out + EBIAS) : 0;
+
+    out_maxprec[fifo_idx].write(maxprec);
+    out_bemax[fifo_idx].write(biased_emax);
+    out_emax[fifo_idx].write(emax_out);
+  }
+}
+
 void fwd_float2int_2d(
   size_t in_total_blocks,
   hls::stream<int> &in_emax,
@@ -141,7 +207,8 @@ void fwd_float2int_2d(
   hls::stream<iblock_2d_t> &out_iblock,
   hls::stream<uint> &out_bemax)
 {
-  fwd_f2i_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+  fwd_f2i_block_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     int emax = in_emax.read();
     uint biased_emax = in_bemax.read();
     //* Immediately relay the read emax to the next module.
@@ -153,12 +220,14 @@ void fwd_float2int_2d(
 
     //* Encode block only if *biased* exponent is nonzero.
     if (biased_emax) {
+      #pragma HLS PIPELINE II=1
       //* Compute power-of-two scale factor for all floats in the block
       //* relative to emax of the block.
       //! Use `emax` instead of `biased_emax`.
       float scale = quantize_scaler(1.0f, emax);
-      fwd_f2i_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
-        #pragma HLS pipeline II=2
+      fwd_f2i_loop: 
+      for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
+        #pragma HLS UNROLL factor=16
 
         //* Compute p-bit int y = s*x where x is floating and |y| <= 2^(p-2) - 1
         iblock_buf.data[i] = (int32)(scale * fblock_buf.data[i]);
@@ -167,6 +236,50 @@ void fwd_float2int_2d(
     //* Relay the block even if it's all zeros.
     //TODO: Find a way to avoid this.
     out_iblock.write(iblock_buf);
+  }
+}
+
+void fwd_float2int_2d_par(
+  size_t in_total_blocks,
+  hls::stream<int> in_emax[FIFO_WIDTH],
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH])
+{
+  fwd_f2i_block_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS UNROLL factor=64
+
+    uint fifo_idx = FIFO_INDEX(block_id);
+    int emax = in_emax[fifo_idx].read();
+    uint biased_emax = in_bemax[fifo_idx].read();
+    //* Immediately relay the read emax to the next module.
+    out_bemax[fifo_idx].write(biased_emax);
+
+    fblock_2d_t fblock_buf = in_fblock[fifo_idx].read();
+    iblock_2d_t iblock_buf;
+    iblock_buf.id = fblock_buf.id;
+
+    //* Encode block only if *biased* exponent is nonzero.
+    if (biased_emax) {
+      #pragma HLS PIPELINE II=1
+      //* Compute power-of-two scale factor for all floats in the block
+      //* relative to emax of the block.
+      //! Use `emax` instead of `biased_emax`.
+      float scale = quantize_scaler(1.0f, emax);
+      fwd_f2i_loop: 
+      for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
+        #pragma HLS UNROLL factor=16
+
+        //* Compute p-bit int y = s*x where x is floating and |y| <= 2^(p-2) - 1
+        iblock_buf.data[i] = (int32)(scale * fblock_buf.data[i]);
+      }
+    }
+    //* Relay the block even if it's all zeros.
+    //TODO: Find a way to avoid this.
+    out_iblock[fifo_idx].write(iblock_buf);
   }
 }
 
@@ -194,7 +307,7 @@ void fwd_cast(hls::stream<int32> &out_integer, hls::stream<float> &in_float, uin
   //* relative to emax of the block.
   float scale = quantize_scaler(1.0f, emax);
   fwd_cast_loop: for (; block_size--;) {
-    #pragma HLS pipeline II=1
+    #pragma HLS PIPELINE II=1
 
     //? Compute p-bit int y = s*x where x is floating and |y| <= 2^(p-2) - 1
     out_integer << (int32)(scale * in_float.read());
@@ -272,7 +385,11 @@ void fwd_decorrelate_2d(
   hls::stream<iblock_2d_t> &out_iblock,
   hls::stream<uint> &out_bemax)
 {
-  fwd_decorrelate_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+  fwd_decorrelate_block_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+
+    //& II=4 w/o optimization.
     //* Blocking reads.
     uint biased_emax = in_bemax.read();
     iblock_2d_t iblock_buf = in_iblock.read();
@@ -287,17 +404,52 @@ void fwd_decorrelate_2d(
   }
 }
 
+void fwd_decorrelate_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> in_iblock[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH])
+{
+  fwd_decorrelate_block_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS UNROLL factor=64
+
+    uint fifo_idx = FIFO_INDEX(block_id);
+    //& II=4 w/o optimization.
+    //* Blocking reads.
+    uint biased_emax = in_bemax[fifo_idx].read();
+    iblock_2d_t iblock_buf = in_iblock[fifo_idx].read();
+    out_bemax[fifo_idx].write(biased_emax);
+
+    //* Encode block only if biased exponent is nonzero.
+    if (biased_emax) {
+      fwd_decorrelate_2d_block(iblock_buf.data);
+    }
+    //* Relay the block even if nothing is done.
+    out_iblock[fifo_idx].write(iblock_buf);
+  }
+}
+
 void fwd_decorrelate_2d_block(volatile int32 *iblock)
 {
-#pragma HLS INLINE
+// #pragma HLS INLINE
+#pragma PIPELINE II=1
 
   uint x, y;
   /* transform along x */
-  fwd_decorrelate_x_loop: for (y = 0; y < 4; y++)
+  fwd_decorrelate_x_loop: for (y = 0; y < 4; y++) {
+    #pragma HLS UNROLL factor=4
+    // #pragma HLS PIPELINE II=1
     fwd_lift_vector(iblock + 4 * y, 1);
+  }
   /* transform along y */
-  fwd_decorrelate_y_loop: for (x = 0; x < 4; x++)
+  fwd_decorrelate_y_loop: for (x = 0; x < 4; x++) {
+    #pragma HLS UNROLL factor=4
+    // #pragma HLS PIPELINE II=1
     fwd_lift_vector(iblock + 1 * x, 4);
+  }
 }
 
 /* Map two's complement signed integer to negabinary unsigned integer */
@@ -331,6 +483,35 @@ void fwd_reorder_int2uint_2d(
     }
     //* Relay the block even if nothing is done.
     out_ublock.write(ublock_buf);
+  }
+}
+
+void fwd_reorder_int2uint_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> in_iblock[FIFO_WIDTH],
+  hls::stream<ublock_2d_t> out_ublock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH])
+{
+  fwd_reorder_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS UNROLL factor=64
+
+    uint fifo_idx = FIFO_INDEX(block_id);
+    //* Blocking reads.
+    uint biased_emax = in_bemax[fifo_idx].read();
+    iblock_2d_t iblock_buf = in_iblock[fifo_idx].read();
+    out_bemax[fifo_idx].write(biased_emax);
+
+    ublock_2d_t ublock_buf;
+    ublock_buf.id = iblock_buf.id;
+
+    //* Encode block only if biased exponent is nonzero.
+    if (biased_emax) {
+      fwd_reorder_int2uint_block(ublock_buf.data, iblock_buf.data, PERM_2D, BLOCK_SIZE_2D);
+    }
+    //* Relay the block even if nothing is done.
+    out_ublock[fifo_idx].write(ublock_buf);
   }
 }
 
@@ -436,11 +617,15 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
   uint k, n;
 
   /* encode one bit plane at a time from MSB to LSB */
-  all_bitplanes_loop: for (k = intprec, n = 0; k-- > kmin;) {
+  all_bitplanes_loop: 
+  for (k = intprec, n = 0; k-- > kmin;) {
     //^ Step 1: extract bit plane #k of every block to x.
     stream_word x(0);
 
-    all_bitplanes_transpose_loop: for (uint i = 0; i < block_size; i++) {
+    all_bitplanes_transpose_loop: 
+    for (uint i = 0; i < block_size; i++) {
+      #pragma HLS UNROLL factor=16
+
       x += ( (stream_word(ublock[i]) >> k) & stream_word(1) ) << i;
     }
 
@@ -473,7 +658,7 @@ void encode_all_bitplanes(volatile const uint32 *const ublock,
         bits++;
         // stream_write_bit(s, bit, &bit);
         if (bit) {
-          //* After writing a 1 bit, break out for another group test
+          //* After encoding a 1 bit, break out for another group test
           //* (to see whether the bitplane code `x` turns 0 after encoding `n` of its bits).
           //* I.e., for every 1 bit encoded, do a group test on the rest.
           break;
@@ -497,7 +682,11 @@ void encode_bitplanes_2d(
   zfp_output &output,
   hls::stream<write_request_t> &bitplane_queue)
 {
-  encode_bitplanes_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+  encode_bitplanes_loop: 
+  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
+    #pragma HLS PIPELINE II=1
+    #pragma HLS UNROLL factor=16
+
     //* Blocking reads.
     uint biased_emax = in_bemax.read();
     uint maxprec = in_maxprec.read();
@@ -548,28 +737,103 @@ void encode_bitplanes_2d(
   }
 }
 
-// void encode_padding(
-//   size_t in_total_blocks,
-//   hls::stream<uint> &in_bits,
-//   hls::stream<uint> &in_minbits,
-//   hls::stream<write_request_t> &padding_queue)
-// {
-//   encode_padding_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-//     //* Blocking reads.
-//     uint bits = in_bits.read();
-//     uint minbits = in_minbits.read();
+void embeded_coding(
+  size_t block_id,
+  size_t total_blocks,
+  hls::stream<uint> &bemax,
+  hls::stream<uint> &maxprec,
+  zfp_output &output,
+  hls::stream<ublock_2d_t> &ublock,
+  hls::stream<write_request_t> &bitplane_queue)
+{
+  if (block_id >= total_blocks) {
+    return;
+  }
 
-//     //* Padding to the minimum number of bits required.
-//     if (bits < minbits) {
-//       padding_queue.write(
-//         write_request_t(block_id, minbits - bits, (uint64)0, true));
-//     } else {
-//       //* Write an empty request to signal the end of this stage.
-//       padding_queue.write(
-//         write_request_t(block_id, 0, (uint64)0, true));
-//     }
-//   }
-// }
+  uint bits = 1;
+  uint index = 0;
+  uint minbits = output.minbits; 
+  //* Blocking reads.
+  uint biased_emax = bemax.read();
+  uint prec = maxprec.read();
+  ublock_2d_t ublock_buf = ublock.read();
+
+  //* Encode block only if *biased* exponent is nonzero.
+  if (biased_emax) {
+    //~ First, encode block exponent.
+    bits += EBITS;
+    bitplane_queue.write(
+      //! Encode biased emax (NOT emax itself).
+      write_request_t(block_id, index++, bits, (uint64)(2 * biased_emax + 1), false));
+
+    uint encoded_bits = 0;
+    uint maxbits = output.maxbits - bits;
+    //* Adjust the minimum number of bits required.
+    minbits -= MIN(bits, output.minbits);
+    //~ Bitplane coding with the fastest implementation.
+    if (exceeded_maxbits(maxbits, prec, BLOCK_SIZE_2D)) {
+      //* Encode partial bitplanes with rate constraint.
+      encode_partial_bitplanes(
+        ublock_buf.data, bitplane_queue, ublock_buf.id, index, maxbits, prec, BLOCK_SIZE_2D, &encoded_bits);
+    } else {
+      //* Encode all bitplanes without rate constraint.
+      encode_all_bitplanes(
+        ublock_buf.data, bitplane_queue, ublock_buf.id, index, prec, BLOCK_SIZE_2D, &encoded_bits);
+    }
+    bits += encoded_bits;
+  } else {
+    //* Write single zero-bit to encode the entire block.
+    bitplane_queue.write(
+      write_request_t(block_id, index++, bits, (uint64)0, false));
+  }
+
+  //~ Encode padding bits.
+  if (bits < minbits) {
+    bitplane_queue.write(
+      write_request_t(block_id, index++, minbits - bits, (uint64)0, true));
+    bits = minbits;
+  } else {
+    //* Write an empty request to signal the end of this stage.
+    bitplane_queue.write(
+      write_request_t(block_id, index++, 0, (uint64)0, true/* last bit for this stage */));
+  }
+}
+
+void encode_bitplanes_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<uint> in_maxprec[FIFO_WIDTH],
+  hls::stream<ublock_2d_t> in_ublock[FIFO_WIDTH],
+  zfp_output &output,
+  hls::stream<write_request_t> bitplane_queues[FIFO_WIDTH])
+{
+  size_t total_blocks = in_total_blocks;
+  size_t block_id = 0;
+
+  bitplane_dispatch_loop:
+  for (; block_id < total_blocks; ) {
+    //* Make sure the elements in the loop body are separate PEs.
+    #pragma HLS PIPELINE II=1
+
+    encode_bitplanes_loop:
+    for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++, block_id++) {
+      //* Fully unroll the loop body.
+      #pragma HLS UNROLL
+
+      hls::stream<uint> &bemax = in_bemax[pe_idx];
+      #pragma HLS DEPENDENCE variable=bemax inter false
+      hls::stream<uint> &maxprec = in_maxprec[pe_idx];
+      #pragma HLS DEPENDENCE variable=maxprec inter false
+      hls::stream<ublock_2d_t> &ublock = in_ublock[pe_idx];
+      #pragma HLS DEPENDENCE variable=ublock inter false
+      hls::stream<write_request_t> &bitplane_queue = bitplane_queues[pe_idx];
+      #pragma HLS DEPENDENCE variable=bitplane_queue inter false
+
+      embeded_coding(block_id, total_blocks, bemax, maxprec, output, ublock, bitplane_queue);
+    }
+  }
+}
+
 
 
 void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input)
@@ -579,8 +843,14 @@ void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input)
   ptrdiff_t sx = input.sx ? input.sx : 1;
   ptrdiff_t sy = input.sy ? input.sy : (ptrdiff_t)nx;
 
-  partition_blocks_outer: for (size_t y = 0; y < ny; y += 4) {
-    partition_blocks_inner: for (size_t x = 0, block_id = 0; x < nx; x += 4, block_id++) {
+  size_t block_id = 0;
+  chunk_blocks_outer: 
+  for (size_t y = 0; y < ny; y += 4) {
+    chunk_blocks_inner: 
+    for (size_t x = 0; x < nx; x += 4, block_id++) {
+      // #pragma HLS UNROLL factor=16
+      #pragma HLS PIPELINE II=1
+
       const float *raw = input.data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
       fblock_2d_t fblock_buf;
       fblock_buf.id = block_id;
@@ -594,6 +864,56 @@ void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input)
       }
 
       fblock.write(fblock_buf);
+    }
+  }
+}
+
+void chunk_2d(
+  const float *data,
+  size_t block_id,
+  size_t x, size_t y,
+  size_t nx, size_t ny,
+  ptrdiff_t sx, ptrdiff_t sy,
+  hls::stream<fblock_2d_t> &fblock)
+{
+  fblock_2d_t fblock_buf;
+  fblock_buf.id = block_id;
+  size_t bx = MIN(nx - x, 4u);
+  size_t by = MIN(ny - y, 4u);
+  const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
+
+  if (bx == 4 && by == 4) {
+    gather_2d_block(fblock_buf.data, raw, sx, sy);
+  } else {
+    gather_partial_2d_block(fblock_buf.data, raw, bx, by, sx, sy);
+  }
+
+  fblock.write(fblock_buf);
+}
+
+void chunk_blocks_2d_par(
+  hls::stream<fblock_2d_t> fblocks[FIFO_WIDTH], const zfp_input &input)
+{
+#pragma HLS DATAFLOW
+
+  size_t nx = input.nx;
+  size_t ny = input.ny;
+  ptrdiff_t sx = input.sx ? input.sx : 1;
+  ptrdiff_t sy = input.sy ? input.sy : (ptrdiff_t)nx;
+
+  size_t block_id = 0;
+  chunk_blocks_outer: 
+  for (size_t y = 0; y < ny; y += 4) {
+    chunk_blocks_inner: 
+    for (size_t x = 0; x < nx; x += 4, block_id++) {
+      // #pragma HLS UNROLL factor=16
+      #pragma HLS PIPELINE II=1
+
+      uint fifo_idx = FIFO_INDEX(block_id);
+      hls::stream<fblock_2d_t> &fblock = fblocks[fifo_idx];
+      #pragma HLS DEPENDENCE variable=fblock inter false
+      
+      chunk_2d(input.data, block_id, x, y, nx, ny, sx, sy, fblock);
     }
   }
 }
