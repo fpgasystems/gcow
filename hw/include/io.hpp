@@ -6,13 +6,16 @@
 
 void await_fsm(hls::stream<bit_t> &finished);
 
-void pad_bits(
-  hls::stream<uint> &in_encoded_bits, 
-  uint bits,
-  uint minbits,
-  size_t block_id,
-  hls::stream<write_request_t> &write_queue,
-  hls::stream<uint> &out_encoded_bits);
+void drain_write_queues(
+  size_t in_total_blocks,
+  hls::stream<write_request_t> write_queues[FIFO_WIDTH],
+  hls::stream<outputbuf> outbufs[FIFO_WIDTH]);
+
+void batch_write_encodings(
+  size_t in_total_blocks,
+  hls::stream<outputbuf> outbufs[FIFO_WIDTH],
+  stream_word *output_data,
+  hls::stream<bit_t> &write_fsm_finished);
 
 void drain_write_queue_fsm(
   size_t in_total_blocks,

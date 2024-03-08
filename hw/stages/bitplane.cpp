@@ -40,7 +40,7 @@ void write_outputs_bitplane(
   hls::stream<bit_t> &write_fsm_finished)
 {
   await_fsm(write_fsm_finished);
-  *stream_idx = s.idx;
+  *stream_idx = 4;
 }
 
 extern "C" {
@@ -56,9 +56,9 @@ extern "C" {
     size_t max_bytes = 20 * (1 << 20); //* 20 MiB
     stream s(out_data, max_bytes);
 
-    hls::stream<write_request_t, 4> write_queue[FIFO_WIDTH];
+    hls::stream<write_request_t, 4> write_queues[FIFO_WIDTH];
     hls::stream<bit_t> write_fsm_finished;
-    // drain_write_queue_fsm(total_blocks, s, write_queue, write_fsm_finished);
+    // drain_write_queue_fsm(total_blocks, s, write_queues, write_fsm_finished);
 
     zfp_output output;
     double tolerance = 1e-3;
@@ -73,11 +73,15 @@ extern "C" {
     hls::stream<ublock_2d_t, 4> block[FIFO_WIDTH];
     feed_block_bitplane(total_blocks, ublock, block, biased_emax, prec, bemax_relay, maxprec_relay);
 
-    // encode_bitplanes_2d(total_blocks, bemax_relay, maxprec_relay, block, output, write_queue);
-    encode_bitplanes_2d_par(total_blocks, bemax_relay, maxprec_relay, block, output, write_queue);
+    // encode_bitplanes_2d(total_blocks, bemax_relay, maxprec_relay, block, output, write_queues);
+    encode_bitplanes_2d_par(total_blocks, bemax_relay, maxprec_relay, block, output, write_queues);
 
-    // drain_write_queue_fsm(total_blocks, s, write_queue, write_fsm_finished);
-    drain_write_queue_fsm_par(total_blocks, s, write_queue, write_fsm_finished);
+    // drain_write_queue_fsm(total_blocks, s, write_queues, write_fsm_finished);
+    // drain_write_queue_fsm_par(total_blocks, s, write_queues, write_fsm_finished);
+
+    hls::stream<outputbuf, 4> outputbufs[FIFO_WIDTH]; 
+    drain_write_queues(total_blocks, write_queues, outputbufs);
+    batch_write_encodings(total_blocks, outputbufs, out_data, write_fsm_finished);
     
     write_outputs_bitplane(total_blocks, s, stream_idx, write_fsm_finished);
   }

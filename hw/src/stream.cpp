@@ -59,7 +59,7 @@ inline uint64 stream_read_bits(stream &s, size_t n)
 void stream_write_bits(stream &s, uint64 value, size_t n)
 {
   /* append bit stream to buffer */
-  //? Should be prepending (not appending) the `value` to the buffered bits.
+  //* Append here means to append values from the MSB side (the writing is from LSB to MSB).
   //* The `value` is shifted left by the number of buffered bits.
   //* For example, if the buffer is 0b0101 and the value is 0b11, then the buffer becomes 0b110101.
   //! Casting before shifting.
@@ -87,7 +87,7 @@ void stream_write_bits(stream &s, uint64 value, size_t n)
   /* assert: 0 <= s.buffered_bits < wsize */
   s.buffer &= (stream_word(1) << s.buffered_bits) - stream_word(1);
   /* assert: 0 <= n < 64 */
-  //! Return the casted `val` (on which the previous shifting was done) instead of the original `value`.
+  //! Return the cast `val` (on which the previous shifting was done) instead of the original `value`.
   // *out = val >> n;
 }
 

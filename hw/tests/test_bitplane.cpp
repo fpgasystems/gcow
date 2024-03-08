@@ -19,13 +19,13 @@ int main(int argc, char** argv)
   //* Initialize input.
   std::vector<uint32, aligned_allocator<uint32>> ublock = {
     //* 3-block input for dim=4x4.
-    // 509992724, 444605396, 444605397, 118447768, 
-    // 7401092, 7401093, 7263113, 7263112, 
-    // 29821528, 29821528, 73901, 29292361, 
-    // 29292361, 300834, 300845, 1304446
+    509992724, 444605396, 444605397, 118447768, 
+    7401092, 7401093, 7263113, 7263112, 
+    29821528, 29821528, 73901, 29292361, 
+    29292361, 300834, 300845, 1304446
 
-    //* 1-block input for dim=3x3.
-    282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
+    // //* 1-block input for dim=3x3.
+    // 282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
   };
 
   // std::vector<uint32, aligned_allocator<uint32>> ublock = {
@@ -35,16 +35,16 @@ int main(int argc, char** argv)
   //   114423, 1175, 1175, 5095
   // };
 
-  size_t total_blocks = 4198401;// 1; //64; //4198401;
-  ptrdiff_t stream_idx_host = 4;
+  size_t total_blocks = 3;// 1; //64; //4198401;
+  ptrdiff_t stream_idx_host = 9;
   uint64 expected[stream_idx_host] = {
-    //* Results of 3 blocks (dim=4x4).
-    // 12711260835255415041UL, 5058120776611336133UL, 9096252834960252658UL, 
-    // 7789501227241241664UL, 10487902231007609841UL, 2274063208740063164UL, 
-    // 6559061325237698320UL, 2621975557751902460UL, 280285426033304047UL
+    // * Results of 3 blocks (dim=4x4).
+    12711260835255415041UL, 5058120776611336133UL, 9096252834960252658UL, 
+    7789501227241241664UL, 10487902231007609841UL, 2274063208740063164UL, 
+    6559061325237698320UL, 2621975557751902460UL, 280285426033304047UL
 
-    //* Results of 1 blocks (dim=3x3).
-    7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
+    // //* Results of 1 blocks (dim=3x3).
+    // 7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
   };
   //* Results of 1 block.
   // uint64 expected[] = {
@@ -163,6 +163,7 @@ int main(int argc, char** argv)
   double duration = (std::chrono::duration_cast<std::chrono::milliseconds>
                      (end-start).count() / 1000.0);
 
+  stream_idx = stream_idx_host;
   std::cout << "Duration (including memcpy out): " << duration << " seconds"
             << std::endl;
   std::cout << "Overall grad values per second = " << BLOCK_SIZE_2D / duration

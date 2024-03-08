@@ -11,7 +11,7 @@
 #include <map>
 
 #define DIM_MAX 4 /* maximum number of array dimensions */
-#define FIFO_WIDTH 32
+#define FIFO_WIDTH 16
 #define FIFO_INDEX(x) ((x) & (FIFO_WIDTH - 1))
 
 /* default compression parameters */

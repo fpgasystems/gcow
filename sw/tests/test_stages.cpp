@@ -412,21 +412,21 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
   void *buffer = malloc(output_bytes);
   stream *s = stream_init(buffer, output_bytes);
 
-  // uint32 ublock[BLOCK_SIZE_2D] = {
-  //   509992724, 444605396, 444605397, 118447768, 
-  //   7401092, 7401093, 7263113, 7263112, 
-  //   29821528, 29821528, 73901, 29292361, 
-  //   29292361, 300834, 300845, 1304446
-  // };
-
   uint32 ublock[BLOCK_SIZE_2D] = {
-    // 1992158, 1736739, 1736739, 462686,
-    // 28905, 28910, 28371, 28371,
-    // 116490, 116490, 288, 114420,
-    // 114423, 1175, 1175, 5095
-    //* 1-block input for dim=3x3.
-    282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
+    509992724, 444605396, 444605397, 118447768, 
+    7401092, 7401093, 7263113, 7263112, 
+    29821528, 29821528, 73901, 29292361, 
+    29292361, 300834, 300845, 1304446
   };
+
+  // uint32 ublock[BLOCK_SIZE_2D] = {
+  //   // 1992158, 1736739, 1736739, 462686,
+  //   // 28905, 28910, 28371, 28371,
+  //   // 116490, 116490, 288, 114420,
+  //   // 114423, 1175, 1175, 5095
+  //   //* 1-block input for dim=3x3.
+  //   282897489, 33434444, 33434444, 1796011, 156265097, 156265097, 13133998, 13133998, 68099259, 68099256, 131453921, 8376857, 8376856, 38902892, 38902892, 16897137
+  // };
 
   zfp_output *output = alloc_zfp_output();
   double tolerance = 1e-3;
@@ -449,29 +449,30 @@ TEST(STAGES, ENCODE_ALL_BITPLANES)
 
   //* Only test encoding without bit limits.
   uint encoded_bits = encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
-  // stream_write_bits(s, 2 * e + 1, bits);
-  // encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
-  // stream_write_bits(s, 2 * e + 1, bits);
-  // encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  stream_write_bits(s, 2 * e + 1, bits);
+  encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
+  stream_write_bits(s, 2 * e + 1, bits);
+  encoded_bits += encode_all_bitplanes(s, ublock, maxprec, BLOCK_SIZE_2D);
   printf("Encoded bits:\t\t%u\n\n", encoded_bits);
 
-  // uint64 expected[] = {
-  //   12711260835255415041, 5058120776611336133, 9096252834960252658, 
-  //   7789501227241241664, 10487902231007609841, 2274063208740063164, 
-  //   6559061325237698320, 2621975557751902460, 280285426033304047
-  // };
+  uint64 expected[] = {
+    12711260835255415041, 5058120776611336133, 9096252834960252658, 
+    7789501227241241664, 10487902231007609841, 2274063208740063164, 
+    6559061325237698320, 2621975557751902460, 280285426033304047
+  };
+  uint total = 9;
 
   // uint64 expected[] = {
   //   12711260835255415041, 5058120776611336133, 4484566816532864754
   // };
   // uint total = 3;
 
-  uint64 expected[] = {
-    // 7455816852505100545UL, 432UL
-    //* Expected single-block output for dim=3x3.
-    7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
-  };
-  uint total = 4;
+  // uint64 expected[] = {
+  //   // 7455816852505100545UL, 432UL
+  //   //* Expected single-block output for dim=3x3.
+  //   7846959668108800257UL, 9092781915241025288UL, 1168152206201298680UL, 33031166UL
+  // };
+  // uint total = 4;
 
   printf("stream.idx: %ld\n", s->idx);
   printf("stream: ");

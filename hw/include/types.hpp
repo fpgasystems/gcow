@@ -37,8 +37,9 @@ typedef uint64_t uint64;
 using bit_t = ap_uint<1>;
 // bit_t True = 1;
 // bit_t False = 0;
-using buffer_t = ap_uint<BLOCK_SIZE_2D*32*2>; // maximum # of encoding bits for a 2D block.
-#define buffer_width (BLOCK_SIZE_2D*32*2)
+#define BUFFER_SIZE (BLOCK_SIZE_2D*32*2)
+using buffer_t = ap_uint<BUFFER_SIZE>; // maximum # of encoding bits for a 2D block.
+using residual_t = ap_uint<1024>;
 
 // typedef ap_axis<32, 0, 0, 0> sdata;
 // typedef ap_axiu<32, 0, 0, 0> udata;
@@ -65,7 +66,7 @@ struct write_request_t {
   //^ 17 bytes
 
   write_request_t(void)
-    : block_id(0), index(index), nbits(0), value(0), last(false)
+    : block_id(0), index(0), nbits(0), value(0), last(false)
   {}
 
   write_request_t(size_t block_id, uint index, uint nbits, uint64 value, bool last)
@@ -74,8 +75,8 @@ struct write_request_t {
 };
 
 /* Use the maximum word size by default for IO highest speed (irrespective of the input data type since it's just a stream of bits) */
-typedef ap_uint<512> stream_word;
-// typedef uint64 stream_word;
+// typedef ap_uint<512> stream_word;
+typedef uint64 stream_word;
 /* Maximum number of bits in a buffered stream word */
 #define SWORD_BITS ((size_t)(sizeof(stream_word) * CHAR_BIT))
 
