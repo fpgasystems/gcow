@@ -80,8 +80,8 @@ extern "C" {
     // drain_write_queue_fsm_par(total_blocks, s, write_queues, write_fsm_finished);
 
     hls::stream<outputbuf, 4> outputbufs[FIFO_WIDTH]; 
-    drain_write_queues(total_blocks, write_queues, outputbufs);
-    batch_write_encodings(total_blocks, outputbufs, out_data, write_fsm_finished);
+    aggregate_write_queues(total_blocks, write_queues, outputbufs);
+    burst_write_encodings(total_blocks, outputbufs, out_data, write_fsm_finished);
     
     write_outputs_bitplane(total_blocks, s, stream_idx, write_fsm_finished);
   }

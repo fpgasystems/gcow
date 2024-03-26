@@ -62,7 +62,11 @@ void write_bits(outputbuf &o, uint64 value, size_t n)
   // std::cout << "Buffered bits: " << o.buffered_bits << std::endl;
 }
 
-void drain_write_queues(
+/**
+ ** Aggregates results from the write queues to the output buffers 
+ ** in parallel using different PEs by unrolling the pulling loop.
+*/
+void aggregate_write_queues(
   size_t in_total_blocks,
   hls::stream<write_request_t> write_queues[FIFO_WIDTH],
   hls::stream<outputbuf> outbufs[FIFO_WIDTH])
@@ -70,13 +74,12 @@ void drain_write_queues(
   size_t block_id = 0;
   size_t total_blocks = in_total_blocks;
 
-  drain_queue_loop: 
+  agg_block_loop: 
   for (; block_id < total_blocks; ) {
-    #pragma HLS PIPELINE II=1
 
-    drain_dispatch_loop:
+    agg_pulling_loop:
     for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++, block_id++) {
-      #pragma HLS UNROLL
+      #pragma HLS UNROLL factor=2
 
       if (block_id < total_blocks) {
         write_request_t request_buf = write_request_t();
@@ -139,7 +142,10 @@ void drain_write_queues(
   } // drain_queue_loop
 }
 
-void batch_write_encodings(
+/**
+ ** Write out the encodings in the output buffers sequentially but in bursts.
+*/
+void burst_write_encodings(
   size_t in_total_blocks,
   hls::stream<outputbuf> outbufs[FIFO_WIDTH],
   stream_word *output_data,
@@ -153,12 +159,10 @@ void batch_write_encodings(
 
   batch_write_block_loop: 
   for (; block_id < total_blocks; ) {
-    #pragma HLS PIPELINE II=1
     
     batch_write_loop:
     for (uint pe_idx = 0; pe_idx < FIFO_WIDTH && block_id < total_blocks; 
         pe_idx++, block_id++) {
-      #pragma HLS PIPELINE II=1
 
       outputbuf obuf = outbufs[pe_idx].read();
       #pragma HLS DEPENDENCE variable=outbufs class=array inter false
@@ -168,7 +172,7 @@ void batch_write_encodings(
       if (residual_bits > 0) {
         //! WRONG: Append means to add the bits to the high significant bits, i.e., 00101 -> append 11 -> 1100101.
         int shift = SWORD_BITS - residual_bits;
-        //* Narrer -> wider unsigned values: zero-padded.
+        //* Narrower -> wider unsigned values: zero-padded.
         //! Casting before shifting.
         residual_t val = residual_t(obuf.buffer.range(shift-1, 0)) << residual_bits;
         residual_buf += val;
@@ -181,8 +185,7 @@ void batch_write_encodings(
       }
 
       write_loop:
-      for (uint i = 0; i < BUFFER_SIZE*8; i+=SWORD_BITS) {
-        #pragma HLS PIPELINE II=1
+      for (uint i = 0; i < BUFFER_SIZE*CHAR_BIT; i+=SWORD_BITS) {
 
         if (obuf.buffered_bits >= SWORD_BITS) {
           // std::bitset<64> val(obuf.buffer.range(SWORD_BITS-1, 0));
@@ -285,7 +288,7 @@ void drain_write_queue_fsm(
   stream_flush(s);
   write_fsm_finished.write(1);
 }
-
+ 
 void drain_write_queue_fsm_index(
   size_t in_total_blocks,
   stream &s,

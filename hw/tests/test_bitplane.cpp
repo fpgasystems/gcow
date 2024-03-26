@@ -35,7 +35,7 @@ int main(int argc, char** argv)
   //   114423, 1175, 1175, 5095
   // };
 
-  size_t total_blocks = 3;// 1; //64; //4198401;
+  size_t total_blocks = 4198401;// 1; //64; //4198401;
   ptrdiff_t stream_idx_host = 9;
   uint64 expected[stream_idx_host] = {
     // * Results of 3 blocks (dim=4x4).

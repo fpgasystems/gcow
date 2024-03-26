@@ -71,7 +71,7 @@ def assign_gradients(model, collected_grads):
       idx += num_elements
 
 
-def train_one_step(zfp_mode, variable, inputs, labels, model, criterion, optimizer):
+def train_one_step(zfp_mode, variable, inputs, labels, model, criterion, optimizer, device):
   global g_total_steps
   global g_total_codec_sec
   global g_total_transfer_sec
@@ -168,7 +168,8 @@ if __name__ == '__main__':
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
       
-        loss = train_one_step(zfp_mode, variable, inputs, labels, model, criterion, optimizer)
+        loss = train_one_step(
+          zfp_mode, variable, inputs, labels, model, criterion, optimizer, device)
         running_loss += loss
         losses.append(loss)
         
