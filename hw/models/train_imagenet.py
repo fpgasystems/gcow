@@ -149,8 +149,10 @@ def main():
         #* Simply call main_worker function
         zfp_modes = ['precision', 'accuracy', 'rate', 'lossless'] \
             if not args.zfp_mode else [args.zfp_mode]
-        tolerances = reversed([1e-1, 1e-3, 1e-6, 1e-9]) if args.reversed else [1e-1, 1e-3, 1e-6, 1e-9]
-        rates = reversed([4, 8, 16, 32]) if args.reversed else [4, 8, 16, 32]
+        # tolerances = reversed([1e-1, 1e-3, 1e-6, 1e-9]) if args.reversed else [1e-1, 1e-3, 1e-6, 1e-9]
+        # rates = reversed([4, 8, 16, 32]) if args.reversed else [4, 8, 16, 32]
+        tolerances = reversed([1e-9]) if args.reversed else [1e-6]
+        rates = reversed([32]) if args.reversed else [16]
         for zfp_mode in zfp_modes:
             args.zfp_mode = zfp_mode
             g_mode = zfp_mode
@@ -364,7 +366,7 @@ def main_worker(variable, gpu, ngpus_per_node, args):
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
                 'scheduler' : scheduler.state_dict()
-            }, is_best)
+            }, is_best, f"{g_arch}_{g_mode}_{variable}")
 
         #* Checkpoint results every epoch
         result = {
@@ -392,7 +394,7 @@ def main_worker(variable, gpu, ngpus_per_node, args):
         
         if diverged:
             break
-        if unchanged_counter > 3:
+        if unchanged_counter > 5:
             print(f'Early stopping at epoch {epoch}')
             break
         
@@ -574,10 +576,11 @@ def validate(val_loader, model, criterion, args):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
+def save_checkpoint(state, is_best, filename):
+    file = f'models/{filename}_ckp.tar'
+    torch.save(state, file)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(file, f'models/{filename}_best_ckp.tar')
 
 class Summary(Enum):
     NONE = 0

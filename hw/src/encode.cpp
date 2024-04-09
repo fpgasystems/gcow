@@ -152,26 +152,27 @@ void compute_block_exponent_2d(
   }
 }
 
-
-void compute_block_emax_2d(
+void emax_producer(
+  uint pe_idx,
   size_t in_total_blocks,
-  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH], 
-  const zfp_output &output, 
-  hls::stream<int> out_emax[FIFO_WIDTH],
-  hls::stream<uint> out_bemax[FIFO_WIDTH],
-  hls::stream<uint> out_maxprec[FIFO_WIDTH],
-  hls::stream<fblock_2d_t> out_fblock[FIFO_WIDTH])
+  hls::stream<fblock_2d_t> &in_fblock, 
+  // const zfp_output &output, 
+  uint maxprec,
+  int minexp,
+  hls::stream<int> &out_emax,
+  hls::stream<uint> &out_bemax,
+  hls::stream<uint> &out_maxprec,
+  hls::stream<fblock_2d_t> &out_fblock)
 {
+#pragma HLS INLINE off
+
   emax_block_loop: 
-  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-    #pragma HLS PIPELINE II=1
-    #pragma HLS UNROLL factor=64
+  for (size_t block_id = pe_idx; block_id < in_total_blocks; block_id += FIFO_WIDTH) {
     
-    uint fifo_idx = FIFO_INDEX(block_id);
     //* Blocking read.
-    fblock_2d_t fblock_buf = in_fblock[fifo_idx].read();
+    fblock_2d_t fblock_buf = in_fblock.read();
     //* Immediately relay the read block to the next module.
-    out_fblock[fifo_idx].write(fblock_buf);
+    out_fblock.write(fblock_buf);
 
     float emax = 0;
     //~ 1: Find the maximum floating point and return its exponent as the block exponent.
@@ -190,12 +191,44 @@ void compute_block_emax_2d(
       //* E.g., smallest number: 2^(-126) = 1.1754944e-38, which is subnormal.
       emax_out = MAX(emax_out, 1 - EBIAS);
     }
-    uint maxprec = get_precision(emax_out, output.maxprec, output.minexp, 2);
+    uint maxprec = get_precision(emax_out, maxprec, minexp, 2);
     uint biased_emax = (maxprec)? (uint)(emax_out + EBIAS) : 0;
 
-    out_maxprec[fifo_idx].write(maxprec);
-    out_bemax[fifo_idx].write(biased_emax);
-    out_emax[fifo_idx].write(emax_out);
+    out_emax.write(emax_out);
+    out_maxprec.write(maxprec);
+    out_bemax.write(biased_emax);
+  }
+}
+
+
+//* Block-level parallel version of `compute_block_exponent_2d`.
+void compute_block_emax_2d(
+  size_t in_total_blocks,
+  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH], 
+  const zfp_output &output, 
+  hls::stream<int> out_emax[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH],
+  hls::stream<uint> out_maxprec[FIFO_WIDTH],
+  hls::stream<fblock_2d_t> out_fblock[FIFO_WIDTH])
+{
+#pragma HLS PIPELINE II=1
+
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    #pragma HLS UNROLL factor=32
+    
+    hls::stream<fblock_2d_t> &s_in_fblock = in_fblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_fblock class=array inter false
+    hls::stream<int> &s_out_emax = out_emax[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_emax class=array inter false
+    hls::stream<uint> &s_out_bemax = out_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_bemax class=array inter false
+    hls::stream<uint> &s_out_maxprec = out_maxprec[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_maxprec class=array inter false
+    hls::stream<fblock_2d_t> &s_out_fblock = out_fblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_fblock class=array inter false
+    
+    emax_producer(pe_idx, in_total_blocks, s_in_fblock, output.maxprec, output.minexp, 
+      s_out_emax, s_out_bemax, s_out_maxprec, s_out_fblock);
   }
 }
 
@@ -738,64 +771,69 @@ void encode_bitplanes_2d(
 }
 
 void embeded_coding(
-  size_t block_id,
+  size_t pe_idx,
   size_t total_blocks,
+  uint in_minbits,
+  uint in_maxbits,
   hls::stream<uint> &bemax,
   hls::stream<uint> &maxprec,
-  zfp_output &output,
   hls::stream<ublock_2d_t> &ublock,
   hls::stream<write_request_t> &bitplane_queue)
 {
-  if (block_id >= total_blocks) {
-    return;
-  }
+// #pragma HLS INLINE recursive
 
-  uint bits = 1;
-  uint index = 0;
-  uint minbits = output.minbits; 
-  //* Blocking reads.
-  uint biased_emax = bemax.read();
-  uint prec = maxprec.read();
-  ublock_2d_t ublock_buf = ublock.read();
+  embeded_coding_loop:
+  for (size_t block_id = pe_idx; block_id < total_blocks; block_id += FIFO_WIDTH) {
 
-  //* Encode block only if *biased* exponent is nonzero.
-  if (biased_emax) {
-    //~ First, encode block exponent.
-    bits += EBITS;
-    bitplane_queue.write(
-      //! Encode biased emax (NOT emax itself).
-      write_request_t(block_id, index++, bits, (uint64)(2 * biased_emax + 1), false));
+    uint bits = 1;
+    uint index = 0;
+    uint minbits = in_minbits; 
+    //* Blocking reads.
+    uint biased_emax = bemax.read();
+    uint prec = maxprec.read();
+    ublock_2d_t ublock_buf = ublock.read();
+    #pragma HLS BIND_STORAGE variable=ublock_buf impl=SLR
 
-    uint encoded_bits = 0;
-    uint maxbits = output.maxbits - bits;
-    //* Adjust the minimum number of bits required.
-    minbits -= MIN(bits, output.minbits);
-    //~ Bitplane coding with the fastest implementation.
-    if (exceeded_maxbits(maxbits, prec, BLOCK_SIZE_2D)) {
-      //* Encode partial bitplanes with rate constraint.
-      encode_partial_bitplanes(
-        ublock_buf.data, bitplane_queue, ublock_buf.id, index, maxbits, prec, BLOCK_SIZE_2D, &encoded_bits);
+    //* Encode block only if *biased* exponent is nonzero.
+    if (biased_emax) {
+      //~ First, encode block exponent.
+      bits += EBITS;
+      bitplane_queue.write(
+        //! Encode biased emax (NOT emax itself).
+        write_request_t(block_id, index++, bits, (uint64)(2 * biased_emax + 1), false));
+
+      uint encoded_bits = 0;
+      #pragma HLS BIND_STORAGE variable=encoded_bits impl=SLR
+      uint maxbits = in_maxbits - bits;
+      //* Adjust the minimum number of bits required.
+      minbits -= MIN(bits, in_minbits);
+      //~ Bitplane coding with the fastest implementation.
+      // if (exceeded_maxbits(maxbits, prec, BLOCK_SIZE_2D)) {
+      //   //* Encode partial bitplanes with rate constraint.
+      //   encode_partial_bitplanes(
+      //     ublock_buf.data, bitplane_queue, ublock_buf.id, index, maxbits, prec, BLOCK_SIZE_2D, &encoded_bits);
+      // } else {
+        //* Encode all bitplanes without rate constraint.
+        encode_all_bitplanes(
+          ublock_buf.data, bitplane_queue, ublock_buf.id, index, prec, BLOCK_SIZE_2D, &encoded_bits);
+      // }
+      bits += encoded_bits;
     } else {
-      //* Encode all bitplanes without rate constraint.
-      encode_all_bitplanes(
-        ublock_buf.data, bitplane_queue, ublock_buf.id, index, prec, BLOCK_SIZE_2D, &encoded_bits);
+      //* Write single zero-bit to encode the entire block.
+      bitplane_queue.write(
+        write_request_t(block_id, index++, bits, (uint64)0, false));
     }
-    bits += encoded_bits;
-  } else {
-    //* Write single zero-bit to encode the entire block.
-    bitplane_queue.write(
-      write_request_t(block_id, index++, bits, (uint64)0, false));
-  }
 
-  //~ Encode padding bits.
-  if (bits < minbits) {
-    bitplane_queue.write(
-      write_request_t(block_id, index++, minbits - bits, (uint64)0, true));
-    bits = minbits;
-  } else {
-    //* Write an empty request to signal the end of this stage.
-    bitplane_queue.write(
-      write_request_t(block_id, index++, 0, (uint64)0, true/* last bit for this stage */));
+    //~ Encode padding bits.
+    if (bits < minbits) {
+      bitplane_queue.write(
+        write_request_t(block_id, index++, minbits - bits, (uint64)0, true));
+      bits = minbits;
+    } else {
+      //* Write an empty request to signal the end of this stage.
+      bitplane_queue.write(
+        write_request_t(block_id, index++, 0, (uint64)0, true/* last bit for this stage */));
+    }
   }
 }
 
@@ -807,30 +845,28 @@ void encode_bitplanes_2d_par(
   zfp_output &output,
   hls::stream<write_request_t> bitplane_queues[FIFO_WIDTH])
 {
+//* Make sure the elements in the loop body are separate PEs.
+#pragma HLS PIPELINE II=1
+
   size_t total_blocks = in_total_blocks;
-  size_t block_id = 0;
+  uint minbits = output.minbits;
+  uint maxbits = output.maxbits;
 
-  bitplane_dispatch_loop:
-  for (; block_id < total_blocks; ) {
-    //* Make sure the elements in the loop body are separate PEs.
-    #pragma HLS PIPELINE II=1
+  encode_bitplanes_loop:
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    //* Fully unroll the loop body.
+    #pragma HLS UNROLL
 
-    encode_bitplanes_loop:
-    for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++, block_id++) {
-      //* Fully unroll the loop body.
-      #pragma HLS UNROLL
+    hls::stream<uint> &bemax = in_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_bemax class=array inter false
+    hls::stream<uint> &maxprec = in_maxprec[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_maxprec class=array inter false
+    hls::stream<ublock_2d_t> &ublock = in_ublock[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_ublock class=array inter false
+    hls::stream<write_request_t> &bitplane_queue = bitplane_queues[pe_idx];
+    #pragma HLS DEPENDENCE variable=bitplane_queues class=array inter false
 
-      hls::stream<uint> &bemax = in_bemax[pe_idx];
-      #pragma HLS DEPENDENCE variable=bemax inter false
-      hls::stream<uint> &maxprec = in_maxprec[pe_idx];
-      #pragma HLS DEPENDENCE variable=maxprec inter false
-      hls::stream<ublock_2d_t> &ublock = in_ublock[pe_idx];
-      #pragma HLS DEPENDENCE variable=ublock inter false
-      hls::stream<write_request_t> &bitplane_queue = bitplane_queues[pe_idx];
-      #pragma HLS DEPENDENCE variable=bitplane_queue inter false
-
-      embeded_coding(block_id, total_blocks, bemax, maxprec, output, ublock, bitplane_queue);
-    }
+    embeded_coding(pe_idx, total_blocks, minbits, maxbits, bemax, maxprec, ublock, bitplane_queue);
   }
 }
 

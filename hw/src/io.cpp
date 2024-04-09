@@ -184,8 +184,8 @@ void burst_write_encodings(
         obuf.buffered_bits -= shift;
       }
 
-      write_loop:
-      for (uint i = 0; i < BUFFER_SIZE*CHAR_BIT; i+=SWORD_BITS) {
+      // write_loop:
+      // for (uint i = 0; i < BUFFER_SIZE; i+=SWORD_BITS) {
 
         if (obuf.buffered_bits >= SWORD_BITS) {
           // std::bitset<64> val(obuf.buffer.range(SWORD_BITS-1, 0));
@@ -219,9 +219,9 @@ void burst_write_encodings(
             residual_bits -= SWORD_BITS;
             // std::cout << "Residual bits: " << residual_bits << std::endl;
           }
-          break;
+          // break;
         }
-      } // write_loop
+      // } // write_loop
     } // batch_write_loop
   } // batch_write_block_loop
 

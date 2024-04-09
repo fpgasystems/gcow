@@ -67,7 +67,7 @@ int main(int argc, char** argv)
               block.data(),
               &err));
 
-  size_t num_blocks = 4198401;
+  size_t num_blocks = 4198401; // 660; // 4198401;
   uint emax[3] = {0};
   OCL_CHECK(err,
             cl::Buffer buffer_emax(

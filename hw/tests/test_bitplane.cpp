@@ -181,26 +181,26 @@ int main(int argc, char** argv)
 
   return EXIT_SUCCESS;
   
-  // bool matched = true;
-  // for (int i = 0; i < stream_idx_host; i++) {
-  //   std::bitset<64> out(out_data.at(i));
-  //   std::bitset<64> val(expected[i]);
-  //   if (out_data.at(i) != expected[i]) {
-  //     std::cout << "out_data[" << i << "] = " << out
-  //               << " != " << val << std::endl;
-  //     matched = false;
-  //   } else {
-  //     std::cout << "out_data[" << i << "] = " << out << std::endl;
-  //   }
-  // }
+  bool matched = true;
+  for (int i = 0; i < stream_idx_host; i++) {
+    std::bitset<64> out(out_data.at(i));
+    std::bitset<64> val(expected[i]);
+    if (out_data.at(i) != expected[i]) {
+      std::cout << "out_data[" << i << "] = " << out
+                << " != " << val << std::endl;
+      matched = false;
+    } else {
+      std::cout << "out_data[" << i << "] = " << out << std::endl;
+    }
+  }
 
-  // std::cout << "Output words: " << stream_idx << std::endl;
+  std::cout << "Output words: " << stream_idx << std::endl;
 
-  // for (int i=0; i < stream_idx; i++) {
-  //   std::bitset<64> out(out_data.at(i));
-  //   std::cout << "out_data[" << i << "] = " << out << std::endl;
-  // }
+  for (int i=0; i < stream_idx; i++) {
+    std::bitset<64> out(out_data.at(i));
+    std::cout << "out_data[" << i << "] = " << out << std::endl;
+  }
 
-  // std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
-  // return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
+  std::cout << "TEST " << (matched ? "PASSED" : "FAILED") << std::endl;
+  return (matched ? EXIT_SUCCESS : EXIT_FAILURE);
 }
