@@ -67,14 +67,14 @@ int main(int argc, char** argv)
   std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
-  size_t num_blocks = 4198401;
+  size_t num_blocks = 4198401; // 66; // 4198401;
   int arg_counter = 0;
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_iblock));
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, num_blocks));
-  // OCL_CHECK(err,
-  //           err = kernel.setArg(arg_counter++, buffer_out));
+  OCL_CHECK(err,
+            err = kernel.setArg(arg_counter++, buffer_out));
 
   //* Copy input data to device global memory
   OCL_CHECK(err,
@@ -91,10 +91,10 @@ int main(int argc, char** argv)
 
   std::cout << "Kernel running ...\n";
   //* Copy Result from Device Global Memory to Host Local Memory
-  // OCL_CHECK(err,
-  // err = q.enqueueMigrateMemObjects({
-  //   buffer_out,
-  // }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
+  OCL_CHECK(err,
+  err = q.enqueueMigrateMemObjects({
+    buffer_out,
+  }, CL_MIGRATE_MEM_OBJECT_HOST /* 1: from device to host */));
   q.finish();
 
   auto end = std::chrono::high_resolution_clock::now();

@@ -71,75 +71,71 @@ void aggregate_write_queues(
   hls::stream<write_request_t> write_queues[FIFO_WIDTH],
   hls::stream<outputbuf> outbufs[FIFO_WIDTH])
 {
-  size_t block_id = 0;
+#pragma HLS PIPELINE II=1
+
   size_t total_blocks = in_total_blocks;
 
-  agg_block_loop: 
-  for (; block_id < total_blocks; ) {
+  agg_pulling_loop:
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    #pragma HLS UNROLL
+    
+    agg_block_loop: 
+    for (size_t block_id = pe_idx; block_id < total_blocks; block_id += FIFO_WIDTH) {
 
-    agg_pulling_loop:
-    for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++, block_id++) {
-      #pragma HLS UNROLL factor=2
+      write_request_t request_buf = write_request_t();
+      outputbuf obuf = outputbuf();
+      //! The initializers are NOT translated to the hardware!!!
+      //! => Dangling signals and bits in the buffer.
+      request_buf.last = false; 
+      obuf.buffered_bits = 0;
+      obuf.buffer = buffer_t(0);
 
-      if (block_id < total_blocks) {
-        write_request_t request_buf = write_request_t();
-        outputbuf obuf = outputbuf();
-        //! The initializers are NOT translated to the hardware!!!
-        //! => Dangling signals and bits in the buffer.
-        request_buf.last = false; 
-        obuf.buffered_bits = 0;
-        obuf.buffer = buffer_t(0);
+      drain_request_loop: 
+      for (uint index=0; !request_buf.last; index++) {
+        request_buf = write_queues[pe_idx].read();
+        #pragma HLS DEPENDENCE variable=write_queues class=array inter false
 
-        drain_request_loop: 
-        for (uint index=0; !request_buf.last; index++) {
-          request_buf = write_queues[pe_idx].read();
-          #pragma HLS DEPENDENCE variable=write_queues class=array inter false
-
-          //* Using the block id from the request to determine the current block.
-          //& assert(request_buf.block_id == block_id);
-          // block_id = request_buf.block_id;
-          //* Verify the order of the write requests within a block for debugging (validated).
-          // if (request_buf.index != index) {
-          //   continue;
-          // }
-
-          if (request_buf.nbits > 1) {
-            if (request_buf.value > 0) {
-              write_bits(obuf, request_buf.value, request_buf.nbits);
-            } else {
-              //* Zero paddings.
-              pad(obuf, request_buf.nbits);
-              // std::cout << "pad: " << 0 << " (" << request_buf.nbits << " bits)" << std::endl;
-            }
-          } else if (request_buf.nbits == 1) {
-            //! Must extract the least significant bit because the value is a 64-bit integer.
-            //! E.g., value = 48(0b110000) -> bit = 0, otherwise, `stream_write_bit` handles it wrong.
-            ap_uint<1> bit = request_buf.value & stream_word(1);
-            // uint bit = request_buf.value & stream_word(1);
-            write_bit(obuf, bit);
-          } else {
-            //* Empty request signals the end of an encoding stage, 
-            //* expecting the `last` flag to be set.
-          }
-        }
-        outbufs[pe_idx].write(obuf);
-        #pragma HLS DEPENDENCE variable=outbufs class=array inter false
-
-        // std::cout << "Block " << block_id << " encodings:" << std::endl;
-        // for (int i = 0; i < BUFFER_SIZE; i+=SWORD_BITS) {
-        //   std::bitset<64> val(obuf.buffer.range(i+SWORD_BITS-1, i));
-        //   std::cout << "Drain encoding [" << i << "]:" << val << std::endl;
-        //   if (i > obuf.buffered_bits) {
-        //     break;
-        //   }
+        //* Using the block id from the request to determine the current block.
+        //& assert(request_buf.block_id == block_id);
+        // block_id = request_buf.block_id;
+        //* Verify the order of the write requests within a block for debugging (validated).
+        // if (request_buf.index != index) {
+        //   continue;
         // }
-        
-      } else {
-        //* Stop the residual PEs.
-        break;
+
+        if (request_buf.nbits > 1) {
+          if (request_buf.value > 0) {
+            write_bits(obuf, request_buf.value, request_buf.nbits);
+          } else {
+            //* Zero paddings.
+            pad(obuf, request_buf.nbits);
+            // std::cout << "pad: " << 0 << " (" << request_buf.nbits << " bits)" << std::endl;
+          }
+        } else if (request_buf.nbits == 1) {
+          //! Must extract the least significant bit because the value is a 64-bit integer.
+          //! E.g., value = 48(0b110000) -> bit = 0, otherwise, `stream_write_bit` handles it wrong.
+          ap_uint<1> bit = request_buf.value & stream_word(1);
+          // uint bit = request_buf.value & stream_word(1);
+          write_bit(obuf, bit);
+        } else {
+          //* Empty request signals the end of an encoding stage, 
+          //* expecting the `last` flag to be set.
+        }
       }
-    } // drain_dispatch_loop
-  } // drain_queue_loop
+      outbufs[pe_idx].write(obuf);
+      #pragma HLS DEPENDENCE variable=outbufs class=array inter false
+
+      // std::cout << "Block " << block_id << " encodings:" << std::endl;
+      // for (int i = 0; i < BUFFER_SIZE; i+=SWORD_BITS) {
+      //   std::bitset<64> val(obuf.buffer.range(i+SWORD_BITS-1, i));
+      //   std::cout << "Drain encoding [" << i << "]:" << val << std::endl;
+      //   if (i > obuf.buffered_bits) {
+      //     break;
+      //   }
+      // }
+
+    } // agg_block_loop
+  } // agg_pulling_loop
 }
 
 /**
@@ -160,6 +156,7 @@ void burst_write_encodings(
   batch_write_block_loop: 
   for (; block_id < total_blocks; ) {
     
+    //* Sequentially pulling from the output buffers of different PEs in order.
     batch_write_loop:
     for (uint pe_idx = 0; pe_idx < FIFO_WIDTH && block_id < total_blocks; 
         pe_idx++, block_id++) {
@@ -184,9 +181,9 @@ void burst_write_encodings(
         obuf.buffered_bits -= shift;
       }
 
-      // write_loop:
-      // for (uint i = 0; i < BUFFER_SIZE; i+=SWORD_BITS) {
-
+      write_loop:
+      for (uint i = 0; i < BUFFER_SIZE; i+=SWORD_BITS) {
+      //! Remove the above loop, assuming no need for multiple writes per block.
         if (obuf.buffered_bits >= SWORD_BITS) {
           // std::bitset<64> val(obuf.buffer.range(SWORD_BITS-1, 0));
           // std::cout << "Output bits: " << val << " (" << SWORD_BITS << " bits)" << std::endl;
@@ -221,7 +218,7 @@ void burst_write_encodings(
           }
           // break;
         }
-      // } // write_loop
+      } // write_loop
     } // batch_write_loop
   } // batch_write_block_loop
 
@@ -459,17 +456,6 @@ void relay_scalers_2d(
       out_float << block_buf.data[i];
     }
   }
-}
-
-void write_bits(
-  write_request_t &in_wrequest, 
-  hls::stream<write_request_t> &write_queue, 
-  hls::stream<uint64> &out_residual)
-{
-  //* Enqueue the write request.
-  write_queue.write(in_wrequest);
-  //* Return the updated value immediately as if it was written already.
-  out_residual.write(in_wrequest.value >> in_wrequest.nbits);
 }
 
 void pull_write_requests_fsm(

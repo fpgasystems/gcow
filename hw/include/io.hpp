@@ -4,6 +4,12 @@
 #include "types.hpp"
 
 
+void pad(outputbuf &o, uint64 n);
+
+void write_bit(outputbuf &o, ap_uint<1> bit);
+
+void write_bits(outputbuf &o, uint64 value, size_t n);
+
 void await_fsm(hls::stream<bit_t> &finished);
 
 void aggregate_write_queues(

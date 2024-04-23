@@ -74,7 +74,7 @@ int main(int argc, char** argv)
   std::cout << "Finished allocating buffers\n";
 
   //* Set the Kernel Arguments
-  size_t num_blocks = 4198401;
+  size_t num_blocks = 4198401; // 66; // 4198401;
   int arg_counter = 0;
   OCL_CHECK(err,
             err = kernel.setArg(arg_counter++, buffer_iblock));

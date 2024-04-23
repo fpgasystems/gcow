@@ -176,7 +176,8 @@ void emax_producer(
 
     float emax = 0;
     //~ 1: Find the maximum floating point and return its exponent as the block exponent.
-    emax_loop: for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
+    emax_loop: 
+    for (uint i = 0; i < BLOCK_SIZE_2D; i++) {
       #pragma HLS PIPELINE II=1
       float f = FABS(fblock_buf.data[i]);
       emax = MAX(emax, f);
@@ -213,6 +214,7 @@ void compute_block_emax_2d(
 {
 #pragma HLS PIPELINE II=1
 
+  emax_dispatch_loop:
   for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
     #pragma HLS UNROLL factor=32
     
@@ -240,6 +242,8 @@ void fwd_float2int_2d(
   hls::stream<iblock_2d_t> &out_iblock,
   hls::stream<uint> &out_bemax)
 {
+#pragma HLS INLINE off
+
   fwd_f2i_block_loop: 
   for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
     int emax = in_emax.read();
@@ -272,26 +276,22 @@ void fwd_float2int_2d(
   }
 }
 
-void fwd_float2int_2d_par(
+void f2i_caster(
+  uint pe_idx,
   size_t in_total_blocks,
-  hls::stream<int> in_emax[FIFO_WIDTH],
-  hls::stream<uint> in_bemax[FIFO_WIDTH],
-  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH],
-  hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
-  hls::stream<uint> out_bemax[FIFO_WIDTH])
+  hls::stream<int> &in_emax,
+  hls::stream<uint> &in_bemax,
+  hls::stream<fblock_2d_t> &in_fblock,
+  hls::stream<iblock_2d_t> &out_iblock,
+  hls::stream<uint> &out_bemax)
 {
-  fwd_f2i_block_loop: 
-  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-    #pragma HLS PIPELINE II=1
-    #pragma HLS UNROLL factor=64
-
-    uint fifo_idx = FIFO_INDEX(block_id);
-    int emax = in_emax[fifo_idx].read();
-    uint biased_emax = in_bemax[fifo_idx].read();
+  for (size_t block_id = pe_idx; block_id < in_total_blocks; block_id += FIFO_WIDTH) {
+    int emax = in_emax.read();
+    uint biased_emax = in_bemax.read();
     //* Immediately relay the read emax to the next module.
-    out_bemax[fifo_idx].write(biased_emax);
+    out_bemax.write(biased_emax);
 
-    fblock_2d_t fblock_buf = in_fblock[fifo_idx].read();
+    fblock_2d_t fblock_buf = in_fblock.read();
     iblock_2d_t iblock_buf;
     iblock_buf.id = fblock_buf.id;
 
@@ -311,8 +311,37 @@ void fwd_float2int_2d_par(
       }
     }
     //* Relay the block even if it's all zeros.
-    //TODO: Find a way to avoid this.
-    out_iblock[fifo_idx].write(iblock_buf);
+    out_iblock.write(iblock_buf);
+  }
+}
+
+void fwd_float2int_2d_par(
+  size_t in_total_blocks,
+  hls::stream<int> in_emax[FIFO_WIDTH],
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<fblock_2d_t> in_fblock[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH])
+{
+#pragma HLS PIPELINE II=1
+
+  fwd_f2i_dispatch_loop: 
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    #pragma HLS UNROLL 
+
+    hls::stream<int> &in_emax_s = in_emax[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_emax class=array inter false
+    hls::stream<uint> &in_bemax_s = in_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_bemax class=array inter false
+    hls::stream<fblock_2d_t> &in_fblock_s = in_fblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_fblock class=array inter false
+    hls::stream<iblock_2d_t> &out_iblock_s = out_iblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_iblock class=array inter false
+    hls::stream<uint> &out_bemax_s = out_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_bemax class=array inter false
+
+    f2i_caster(pe_idx, in_total_blocks, 
+      in_emax_s, in_bemax_s, in_fblock_s, out_iblock_s, out_bemax_s);
   }
 }
 
@@ -437,6 +466,31 @@ void fwd_decorrelate_2d(
   }
 }
 
+void decorrelater(
+  uint pe_idx,
+  size_t in_total_blocks,
+  hls::stream<uint> &in_bemax,
+  hls::stream<iblock_2d_t> &in_iblock,
+  hls::stream<iblock_2d_t> &out_iblock,
+  hls::stream<uint> &out_bemax)
+{
+#pragma HLS INLINE off
+
+  decorrelater_loop:
+  for (size_t block_id = pe_idx; block_id < in_total_blocks; block_id += FIFO_WIDTH) {
+    uint biased_emax = in_bemax.read();
+    iblock_2d_t iblock_buf = in_iblock.read();
+    out_bemax.write(biased_emax);
+
+    //* Encode block only if biased exponent is nonzero.
+    if (biased_emax) {
+      fwd_decorrelate_2d_block(iblock_buf.data);
+    }
+    //* Relay the block even if nothing is done.
+    out_iblock.write(iblock_buf);
+  }
+}
+
 void fwd_decorrelate_2d_par(
   size_t in_total_blocks,
   hls::stream<uint> in_bemax[FIFO_WIDTH],
@@ -444,24 +498,23 @@ void fwd_decorrelate_2d_par(
   hls::stream<iblock_2d_t> out_iblock[FIFO_WIDTH],
   hls::stream<uint> out_bemax[FIFO_WIDTH])
 {
-  fwd_decorrelate_block_loop: 
-  for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-    #pragma HLS PIPELINE II=1
-    #pragma HLS UNROLL factor=64
+#pragma HLS PIPELINE II=1
 
-    uint fifo_idx = FIFO_INDEX(block_id);
-    //& II=4 w/o optimization.
-    //* Blocking reads.
-    uint biased_emax = in_bemax[fifo_idx].read();
-    iblock_2d_t iblock_buf = in_iblock[fifo_idx].read();
-    out_bemax[fifo_idx].write(biased_emax);
+  fwd_decorrelate_dispatch_loop: 
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    #pragma HLS UNROLL
 
-    //* Encode block only if biased exponent is nonzero.
-    if (biased_emax) {
-      fwd_decorrelate_2d_block(iblock_buf.data);
-    }
-    //* Relay the block even if nothing is done.
-    out_iblock[fifo_idx].write(iblock_buf);
+    hls::stream<uint> &in_bemax_s = in_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_bemax class=array inter false
+    hls::stream<iblock_2d_t> &in_iblock_s = in_iblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_iblock class=array inter false
+    hls::stream<iblock_2d_t> &out_iblock_s = out_iblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_iblock class=array inter false
+    hls::stream<uint> &out_bemax_s = out_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_bemax class=array inter false
+
+    decorrelater(pe_idx, in_total_blocks, 
+      in_bemax_s, in_iblock_s, out_iblock_s, out_bemax_s);
   }
 }
 
@@ -519,22 +572,21 @@ void fwd_reorder_int2uint_2d(
   }
 }
 
-void fwd_reorder_int2uint_2d_par(
+void reorder_i2u_producer(
+  uint pe_idx,
   size_t in_total_blocks,
-  hls::stream<uint> in_bemax[FIFO_WIDTH],
-  hls::stream<iblock_2d_t> in_iblock[FIFO_WIDTH],
-  hls::stream<ublock_2d_t> out_ublock[FIFO_WIDTH],
-  hls::stream<uint> out_bemax[FIFO_WIDTH])
+  hls::stream<uint> &in_bemax,
+  hls::stream<iblock_2d_t> &in_iblock,
+  hls::stream<ublock_2d_t> &out_ublock,
+  hls::stream<uint> &out_bemax)
 {
-  fwd_reorder_block_loop: for (size_t block_id = 0; block_id < in_total_blocks; block_id++) {
-    #pragma HLS PIPELINE II=1
-    #pragma HLS UNROLL factor=64
+#pragma HLS INLINE off
 
-    uint fifo_idx = FIFO_INDEX(block_id);
-    //* Blocking reads.
-    uint biased_emax = in_bemax[fifo_idx].read();
-    iblock_2d_t iblock_buf = in_iblock[fifo_idx].read();
-    out_bemax[fifo_idx].write(biased_emax);
+  fwd_reorder_producer_loop: 
+  for (size_t block_id = pe_idx; block_id < in_total_blocks; block_id += FIFO_WIDTH) {
+    uint biased_emax = in_bemax.read();
+    iblock_2d_t iblock_buf = in_iblock.read();
+    out_bemax.write(biased_emax);
 
     ublock_2d_t ublock_buf;
     ublock_buf.id = iblock_buf.id;
@@ -544,7 +596,34 @@ void fwd_reorder_int2uint_2d_par(
       fwd_reorder_int2uint_block(ublock_buf.data, iblock_buf.data, PERM_2D, BLOCK_SIZE_2D);
     }
     //* Relay the block even if nothing is done.
-    out_ublock[fifo_idx].write(ublock_buf);
+    out_ublock.write(ublock_buf);
+  }
+}
+
+void fwd_reorder_int2uint_2d_par(
+  size_t in_total_blocks,
+  hls::stream<uint> in_bemax[FIFO_WIDTH],
+  hls::stream<iblock_2d_t> in_iblock[FIFO_WIDTH],
+  hls::stream<ublock_2d_t> out_ublock[FIFO_WIDTH],
+  hls::stream<uint> out_bemax[FIFO_WIDTH])
+{
+#pragma HLS PIPELINE II=1
+
+  fwd_reorder_dispatch_loop: 
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    #pragma HLS UNROLL
+
+    hls::stream<uint> &in_bemax_s = in_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_bemax class=array inter false
+    hls::stream<iblock_2d_t> &in_iblock_s = in_iblock[pe_idx];
+    #pragma HLS DEPENDENCE variable=in_iblock class=array inter false
+    hls::stream<ublock_2d_t> &out_ublock_s = out_ublock[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_ublock class=array inter false
+    hls::stream<uint> &out_bemax_s = out_bemax[pe_idx];
+    #pragma HLS DEPENDENCE variable=out_bemax class=array inter false
+
+    reorder_i2u_producer(pe_idx, in_total_blocks, 
+      in_bemax_s, in_iblock_s, out_ublock_s, out_bemax_s);
   }
 }
 
