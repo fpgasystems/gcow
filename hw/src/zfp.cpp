@@ -38,8 +38,8 @@ void zfp_compress_2d(zfp_output &output, const zfp_input &input)
   hls::stream<bit_t> write_fsm_finished;
 
   //^ Step 0: Launch the write FSM and wait until it finishes.
-  drain_write_queue_fsm(total_blocks, output.data, write_queue, write_fsm_finished);
-  await_fsm(write_fsm_finished);
+  drain_write_queue(total_blocks, output.data, write_queue, write_fsm_finished);
+  await(write_fsm_finished);
 
   //^ Step 1: Partition input data into 4x4 blocks.
   hls::stream<fblock_2d_t, 512> fblock;

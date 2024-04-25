@@ -62,7 +62,7 @@ void write_outputs_bitplane(
   ptrdiff_t *stream_idx, 
   hls::stream<bit_t> &write_fsm_finished)
 {
-  await_fsm(write_fsm_finished);
+  await(write_fsm_finished);
   *stream_idx = 4;
 }
 
@@ -198,7 +198,7 @@ extern "C" {
     const uint32 *ublock, size_t total_blocks, stream_word *out_data, ptrdiff_t *stream_idx)
   {
 #pragma HLS INTERFACE mode=m_axi port=ublock offset=slave bundle=gmem1
-#pragma HLS INTERFACE mode=m_axi port=out_data offset=slave bundle=gmem2
+#pragma HLS INTERFACE mode=m_axi port=out_data offset=slave bundle=gmem2 max_write_burst_length=128
 #pragma HLS INTERFACE mode=m_axi port=stream_idx offset=slave bundle=gmem0
 
 #pragma HLS DATAFLOW
@@ -206,7 +206,7 @@ extern "C" {
     size_t max_bytes = 20 * (1 << 20); //* 20 MiB
     stream s(out_data, max_bytes);
 
-    hls::stream<write_request_t, 32> write_queues[FIFO_WIDTH];
+    hls::stream<write_request_t, 16> write_queues[FIFO_WIDTH];
     // #pragma HLS BIND_STORAGE variable=write_queues type=fifo impl=LUTRAM
     hls::stream<bit_t> write_fsm_finished;
     // hls::stream<bit_t> write_fsm_finished[FIFO_WIDTH];
@@ -220,9 +220,9 @@ extern "C" {
     uint prec = get_precision(emax, output.maxprec, output.minexp, 2);
     uint biased_emax = prec ? (uint)(emax + EBIAS) : 0;
 
-    hls::stream<uint, 32> bemax_relay[FIFO_WIDTH];
-    hls::stream<uint, 32> maxprec_relay[FIFO_WIDTH];
-    hls::stream<ublock_2d_t, 32> block[FIFO_WIDTH];
+    hls::stream<uint, 16> bemax_relay[FIFO_WIDTH];
+    hls::stream<uint, 16> maxprec_relay[FIFO_WIDTH];
+    hls::stream<ublock_2d_t, 16> block[FIFO_WIDTH];
     // #pragma HLS BIND_STORAGE variable=block type=fifo impl=LUTRAM
 
     feed_block_bitplane(total_blocks, ublock, block, biased_emax, prec, bemax_relay, maxprec_relay);
@@ -233,10 +233,14 @@ extern "C" {
     // drain_write_queue_fsm(total_blocks, s, write_queues, write_fsm_finished);
     // drain_write_queue_fsm_par(total_blocks, s, write_queues, write_fsm_finished);
 
-    hls::stream<outputbuf, 32> outputbufs[FIFO_WIDTH]; 
+    hls::stream<outputbuf, 4> outputbufs[FIFO_WIDTH]; 
     // aggregate_write_queues(total_blocks, write_queues, outputbufs);
     aggregate_queues(total_blocks, write_queues, outputbufs);
 
+    // hls::stream<stream_word, BURST_SIZE> words;
+    // hls::stream<uint, 8> counts;
+    // write_encodings(total_blocks, outputbufs, words, counts, out_data);
+    // burst_write(words, counts, out_data, write_fsm_finished);
     burst_write_encodings(total_blocks, outputbufs, out_data, write_fsm_finished);
      
     write_outputs_bitplane(total_blocks, s, stream_idx, write_fsm_finished);

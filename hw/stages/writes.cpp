@@ -40,7 +40,7 @@ extern "C" {
     hls::stream<bit_t> write_fsm_finished;
 
     //* Launch the write FSMs.
-    drain_write_queue_fsm(1, s, write_queue, write_fsm_finished);
+    drain_write_queue(1, s, write_queue, write_fsm_finished);
 
     //* Write some bits.
     enqueue_write_request(write_queue);

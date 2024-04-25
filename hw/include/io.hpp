@@ -3,27 +3,34 @@
 
 #include "types.hpp"
 
-
 void pad(outputbuf &o, uint64 n);
 
 void write_bit(outputbuf &o, ap_uint<1> bit);
 
 void write_bits(outputbuf &o, uint64 value, size_t n);
 
-void await_fsm(hls::stream<bit_t> &finished);
+void await(hls::stream<bit_t> &finished);
 
 void aggregate_write_queues(
   size_t in_total_blocks,
   hls::stream<write_request_t> write_queues[FIFO_WIDTH],
   hls::stream<outputbuf> outbufs[FIFO_WIDTH]);
 
-void burst_write_encodings(
-  size_t in_total_blocks,
-  hls::stream<outputbuf> outbufs[FIFO_WIDTH],
+void burst_write(
+  hls::stream<stream_word> &words,
+  hls::stream<uint> &counts,
   stream_word *output_data,
   hls::stream<bit_t> &write_fsm_finished);
 
-void drain_write_queue_fsm(
+void burst_write_encodings(
+  size_t in_total_blocks,
+  hls::stream<outputbuf> outbufs[FIFO_WIDTH],
+  // hls::stream<stream_word> &words,
+  // hls::stream<uint> &counts,
+  stream_word *output_data,
+  hls::stream<bit_t> &write_fsm_finished);
+
+void drain_write_queue(
   size_t in_total_blocks,
   stream &s,
   hls::stream<write_request_t> &write_queue,

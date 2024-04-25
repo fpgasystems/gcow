@@ -8,7 +8,7 @@
 size_t g_write_block_id = 0; /* block id of the current write request */
 size_t g_write_index = 0; /* index of the current write request in the block */
 
-void await_fsm(hls::stream<bit_t> &finished)
+void await(hls::stream<bit_t> &finished)
 {
   finished.read();
 }
@@ -138,12 +138,41 @@ void aggregate_write_queues(
   } // agg_pulling_loop
 }
 
+void burst_write(
+  hls::stream<stream_word> &words,
+  hls::stream<uint> &counts,
+  stream_word *output_data,
+  hls::stream<bit_t> &write_fsm_finished)
+{
+  uint write_idx = 0;
+  while (true) {
+    uint count = counts.read();
+    if (count == BURST_SIZE) {
+      burst_write_loop:
+      for (uint i = 0; i < BURST_SIZE; i++) {
+        #pragma HLS PIPELINE II=1
+        output_data[write_idx++] = words.read();
+      }
+    } else {
+      burst_write_flush_loop:
+      for (uint i = 0; i < count; i++) {
+        #pragma HLS PIPELINE II=1
+        output_data[write_idx++] = words.read();
+      }
+      break;
+    }
+  }
+  write_fsm_finished.write(1);
+}
+
 /**
  ** Write out the encodings in the output buffers sequentially but in bursts.
 */
 void burst_write_encodings(
   size_t in_total_blocks,
   hls::stream<outputbuf> outbufs[FIFO_WIDTH],
+  // hls::stream<stream_word> &words,
+  // hls::stream<uint> &counts,
   stream_word *output_data,
   hls::stream<bit_t> &write_fsm_finished)
 {
@@ -152,12 +181,16 @@ void burst_write_encodings(
   size_t total_blocks = in_total_blocks;
   residual_t residual_buf = 0;
   size_t residual_bits = 0;
+  //* Cache the residuals for burst writing.
+  stream_word burst_cache[BURST_SIZE];
+  uint cache_idx = 0;
+  // uint word_count = 0;
 
-  batch_write_block_loop: 
+  write_encodings_block_loop: 
   for (; block_id < total_blocks; ) {
     
     //* Sequentially pulling from the output buffers of different PEs in order.
-    batch_write_loop:
+    write_encodings_loop:
     for (uint pe_idx = 0; pe_idx < FIFO_WIDTH && block_id < total_blocks; 
         pe_idx++, block_id++) {
 
@@ -165,31 +198,35 @@ void burst_write_encodings(
       #pragma HLS DEPENDENCE variable=outbufs class=array inter false
 
       //* First, handle the residual bits from the previous block.
+      //! I don't think we need to handle the below case.
       //& assert(residual_bits < SWORD_BITS);
-      if (residual_bits > 0) {
-        //! WRONG: Append means to add the bits to the high significant bits, i.e., 00101 -> append 11 -> 1100101.
-        int shift = SWORD_BITS - residual_bits;
-        //* Narrower -> wider unsigned values: zero-padded.
-        //! Casting before shifting.
-        residual_t val = residual_t(obuf.buffer.range(shift-1, 0)) << residual_bits;
-        residual_buf += val;
-        output_data[write_idx++] = residual_buf;
+      // if (residual_bits > 0) {
+      //   //! WRONG: Append means to add the bits to the high significant bits, i.e., 00101 -> append 11 -> 1100101.
+      //   int shift = SWORD_BITS - residual_bits;
+      //   //* Narrower -> wider unsigned values: zero-padded.
+      //   //! Casting before shifting.
+      //   residual_t val = residual_t(obuf.buffer.range(shift-1, 0)) << residual_bits;
+      //   residual_buf += val;
+      //   output_data[write_idx++] = residual_buf;
 
-        residual_buf = 0;
-        residual_bits = 0;
-        obuf.buffer >>= shift;
-        obuf.buffered_bits -= shift;
-      }
+      //   residual_buf = 0;
+      //   residual_bits = 0;
+      //   obuf.buffer >>= shift;
+      //   obuf.buffered_bits -= shift;
+      // }
 
       write_loop:
-      for (uint i = 0; i < BUFFER_SIZE; i+=SWORD_BITS) {
-      //! Remove the above loop, assuming no need for multiple writes per block.
+      for (uint i = 0; i < BUFFER_SIZE; i += SWORD_BITS) {
+        // #pragma HLS UNROLL
         if (obuf.buffered_bits >= SWORD_BITS) {
           // std::bitset<64> val(obuf.buffer.range(SWORD_BITS-1, 0));
           // std::cout << "Output bits: " << val << " (" << SWORD_BITS << " bits)" << std::endl;
           // std::cout << "Buffered bits: " << obuf.buffered_bits << std::endl;
 
-          output_data[write_idx++] = obuf.buffer.range(SWORD_BITS-1, 0);
+          // output_data[write_idx++] = obuf.buffer.range(SWORD_BITS-1, 0);
+          burst_cache[cache_idx++] = obuf.buffer.range(SWORD_BITS-1, 0);
+          // words.write(obuf.buffer.range(SWORD_BITS-1, 0));
+          // word_count++;
           obuf.buffer >>= SWORD_BITS;
           obuf.buffered_bits -= SWORD_BITS;
         } else {
@@ -197,8 +234,10 @@ void burst_write_encodings(
           // std::bitset<200> val1(residual_buf.range(SWORD_BITS-1, 0));
           // std::cout << "Before append: " << val1 << " (" << residual_bits << " bits)" << std::endl;
 
+          //! Casting before shifting.
           residual_t val = residual_t(obuf.buffer.range(obuf.buffered_bits-1, 0)) << residual_bits;
           residual_buf += val;
+          //& assert (residual_bits < 512)
           residual_bits += obuf.buffered_bits;
 
           // std::bitset<200> val2(residual_buf.range(SWORD_BITS-1, 0));
@@ -208,7 +247,10 @@ void burst_write_encodings(
 
           //TODO: Need a while loop to write until exhausting the bits?
           if (residual_bits >= SWORD_BITS) {
-            output_data[write_idx++] = residual_buf.range(SWORD_BITS-1, 0);
+            // output_data[write_idx++] = residual_buf.range(SWORD_BITS-1, 0);
+            burst_cache[cache_idx++] = residual_buf.range(SWORD_BITS-1, 0);
+            // words.write(residual_buf.range(SWORD_BITS-1, 0));
+            // word_count++;
             // std::bitset<200> val(residual_buf.range(SWORD_BITS-1, 0));
             // std::cout << "Output bits: " << val << " (" << SWORD_BITS << " bits)" << std::endl;
 
@@ -218,28 +260,52 @@ void burst_write_encodings(
           }
           // break;
         }
+        // if (word_count == BURST_SIZE) {
+        //   counts.write(BURST_SIZE);
+        //   word_count = 0;
+        // }
+        if (cache_idx == BURST_SIZE) {
+          burst_write_loop:
+          for (uint j = 0; j < BURST_SIZE; j++) {
+            #pragma HLS PIPELINE II=1
+            output_data[write_idx++] = burst_cache[j];
+          }
+          cache_idx = 0;
+        }
       } // write_loop
     } // batch_write_loop
   } // batch_write_block_loop
 
-  //* Flush the residual bits.
-  //TODO: Need a while loop to write until exhausting the bits?
-  //& assert(residual_bits < SWORD_BITS);
-  if (residual_bits > 0) {
+  //* Flush residual buffer.
+  while (residual_bits > 0) {
     // std::bitset<64> val1(residual_buf.range(SWORD_BITS-1, 0));
     // std::cout << "Before flush: " << val1 << std::endl;
-
+    // std::cout << "residual_bits: " << residual_bits << std::endl;
     //! No need for shifting, since the writing is from LSB to MSB.
-    // residual_buf <<= (SWORD_BITS - residual_bits);
     output_data[write_idx++] = residual_buf.range(SWORD_BITS-1, 0);
-
+    // words.write(residual_buf.range(SWORD_BITS-1, 0));
+    // word_count++;
+    residual_buf >>= SWORD_BITS;
+    //! Cap subtraction, otherwise it will cause undefined behavior on `size_t` type in HW.
+    residual_bits -= MIN(SWORD_BITS, residual_bits);
     // std::bitset<64> val2(residual_buf.range(SWORD_BITS-1, 0));
     // std::cout << "Flush: " << val2 << std::endl;
+  }
+  //* Flush the cached residuals.
+  // if (word_count > 0) {
+  //   counts.write(word_count);
+  // }
+  if (cache_idx > 0) {
+    burst_flush_loop:
+    for (uint j = 0; j < cache_idx; j++) {
+      #pragma HLS PIPELINE II=1
+      output_data[write_idx++] = burst_cache[j];
+    }
   }
   write_fsm_finished.write(1);
 }
 
-void drain_write_queue_fsm(
+void drain_write_queue(
   size_t in_total_blocks,
   stream &s,
   hls::stream<write_request_t> &write_queue,

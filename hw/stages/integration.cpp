@@ -45,7 +45,7 @@ void write_outputs_integration(
   size_t total_blocks, stream &s, ptrdiff_t *stream_idx, 
   hls::stream<bit_t> &write_fsm_finished)
 {
-  await_fsm(write_fsm_finished);
+  await(write_fsm_finished);
   *stream_idx = s.idx;
 }
 
@@ -99,7 +99,7 @@ extern "C" {
 
     hls::stream<write_request_t, 32> write_queue;
     hls::stream<bit_t> write_fsm_finished;
-    drain_write_queue_fsm(total_blocks, output_stream, write_queue, write_fsm_finished);
+    drain_write_queue(total_blocks, output_stream, write_queue, write_fsm_finished);
 
     encode_bitplanes_2d(total_blocks, bemax_relay3, maxprec, ublock, output, write_queue);
 

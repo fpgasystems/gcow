@@ -37,9 +37,11 @@ typedef uint64_t uint64;
 using bit_t = ap_uint<1>;
 // bit_t True = 1;
 // bit_t False = 0;
+//* Maximum # of encoding bits for a 2D block (max. 2 encoding bits per original bit).
+#define BURST_SIZE 128 /* number of writes in a burst */
 #define BUFFER_SIZE (BLOCK_SIZE_2D*32)
-using buffer_t = ap_uint<BUFFER_SIZE>; // maximum # of encoding bits for a 2D block.
-using residual_t = ap_uint<512>;
+using buffer_t = ap_uint<BUFFER_SIZE>; 
+using residual_t = ap_uint<1024>;
 
 // typedef ap_axis<32, 0, 0, 0> sdata;
 // typedef ap_axiu<32, 0, 0, 0> udata;
