@@ -27,7 +27,7 @@ void burst_write_encodings(
   hls::stream<outputbuf> outbufs[FIFO_WIDTH],
   // hls::stream<stream_word> &words,
   // hls::stream<uint> &counts,
-  stream_word *output_data,
+  volatile stream_word *output_data,
   hls::stream<bit_t> &write_fsm_finished);
 
 void drain_write_queue(

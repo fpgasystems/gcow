@@ -66,7 +66,13 @@ void compute_block_emax_2d(
   hls::stream<fblock_2d_t> out_fblock[FIFO_WIDTH]);
 
 void chunk_blocks_2d_par(
-  hls::stream<fblock_2d_t> fblock[FIFO_WIDTH], const zfp_input &input);
+  size_t total_blocks,
+  hls::stream<fblock_2d_t> fblock[FIFO_WIDTH], 
+  const zfp_input &input);
+
+void chunk_blocks_2d_seq(
+  hls::stream<fblock_2d_t> fblock[FIFO_WIDTH], 
+  const zfp_input &input);
 
 void fwd_float2int_2d_par(
   size_t in_total_blocks,

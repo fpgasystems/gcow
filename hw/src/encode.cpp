@@ -327,7 +327,7 @@ void fwd_float2int_2d_par(
 
   fwd_f2i_dispatch_loop: 
   for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
-    #pragma HLS UNROLL 
+    #pragma HLS UNROLL factor=8
 
     hls::stream<int> &in_emax_s = in_emax[pe_idx];
     #pragma HLS DEPENDENCE variable=in_emax class=array inter false
@@ -502,7 +502,7 @@ void fwd_decorrelate_2d_par(
 
   fwd_decorrelate_dispatch_loop: 
   for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
-    #pragma HLS UNROLL
+    #pragma HLS UNROLL factor=8
 
     hls::stream<uint> &in_bemax_s = in_bemax[pe_idx];
     #pragma HLS DEPENDENCE variable=in_bemax class=array inter false
@@ -611,7 +611,7 @@ void fwd_reorder_int2uint_2d_par(
 
   fwd_reorder_dispatch_loop: 
   for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
-    #pragma HLS UNROLL
+    #pragma HLS UNROLL factor=2
 
     hls::stream<uint> &in_bemax_s = in_bemax[pe_idx];
     #pragma HLS DEPENDENCE variable=in_bemax class=array inter false
@@ -985,6 +985,74 @@ void chunk_blocks_2d(hls::stream<fblock_2d_t> &fblock, const zfp_input &input)
 
 void chunk_2d(
   const float *data,
+  size_t total_blocks,
+  uint pe_idx,
+  // size_t block_id,
+  // size_t x, size_t y,
+  size_t nx, size_t ny,
+  ptrdiff_t sx, ptrdiff_t sy,
+  hls::stream<fblock_2d_t> &fblock)
+{
+#pragma HLS INLINE off
+
+  chunk_blocks_outer: 
+    for (size_t y = 0; y < ny; y += 4) {
+      chunk_blocks_inner: 
+      for (size_t x = 4*pe_idx; x < nx; x += 4*(FIFO_WIDTH)) {
+        #pragma HLS PIPELINE II=1
+
+        size_t block_id = x/4 + y/4 * (nx/4);
+
+        std::cout << "PE " << pe_idx << ": [" << block_id << "] x: " << x << " y: " << y << std::endl;
+
+        fblock_2d_t fblock_buf;
+        fblock_buf.id = block_id;
+        size_t bx = MIN(nx - x, 4u);
+        size_t by = MIN(ny - y, 4u);
+        const float *raw = data + sx * (ptrdiff_t)x + sy * (ptrdiff_t)y;
+
+        if (bx == 4 && by == 4) {
+          std::cout << "Full Gathering" << std::endl;
+          gather_2d_block(fblock_buf.data, raw, sx, sy);
+        } else {
+          std::cout << "Partial Gathering" << std::endl;
+          gather_partial_2d_block(fblock_buf.data, raw, bx, by, sx, sy);
+        }
+
+        fblock.write(fblock_buf);
+      }
+  }
+}
+
+void chunk_blocks_2d_par(
+  size_t total_blocks,
+  hls::stream<fblock_2d_t> fblocks[FIFO_WIDTH], 
+  const zfp_input &input)
+{
+#pragma HLS PIPELINE II=1
+
+  // std::cout << "Total blocks: " << total_blocks << std::endl;
+
+  size_t nx = input.nx;
+  size_t ny = input.ny;
+  ptrdiff_t sx = input.sx ? input.sx : 1;
+  ptrdiff_t sy = input.sy ? input.sy : (ptrdiff_t)nx;
+  const float *data = input.data;
+  #pragma HLS DEPENDENCE variable=input inter false
+
+  chunk_dispatch_loop:
+  for (uint pe_idx = 0; pe_idx < FIFO_WIDTH; pe_idx++) {
+    #pragma HLS UNROLL factor=2
+    
+    hls::stream<fblock_2d_t> &fblock = fblocks[pe_idx];
+    #pragma HLS DEPENDENCE variable=fblocks class=array inter false
+
+    chunk_2d(data, total_blocks, pe_idx, nx, ny, sx, sy, fblock);
+  }
+}
+
+void chunk_2d(
+  const float *data,
   size_t block_id,
   size_t x, size_t y,
   size_t nx, size_t ny,
@@ -1006,8 +1074,9 @@ void chunk_2d(
   fblock.write(fblock_buf);
 }
 
-void chunk_blocks_2d_par(
-  hls::stream<fblock_2d_t> fblocks[FIFO_WIDTH], const zfp_input &input)
+void chunk_blocks_2d_seq(
+  hls::stream<fblock_2d_t> fblocks[FIFO_WIDTH], 
+  const zfp_input &input)
 {
 #pragma HLS DATAFLOW
 
@@ -1021,7 +1090,6 @@ void chunk_blocks_2d_par(
   for (size_t y = 0; y < ny; y += 4) {
     chunk_blocks_inner: 
     for (size_t x = 0; x < nx; x += 4, block_id++) {
-      // #pragma HLS UNROLL factor=16
       #pragma HLS PIPELINE II=1
 
       uint fifo_idx = FIFO_INDEX(block_id);

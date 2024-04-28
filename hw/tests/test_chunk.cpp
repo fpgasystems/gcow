@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 
   //* Initialize input.
   //* Avoid multipliers of 4 to stress both chunking routines.
-  size_t n = 8192 + 2; // 4096 + 2;
+  size_t n = 8192 + 2; // 8192 + 2; // 4096 + 2;
   size_t nx = n;
   size_t ny = n;
   size_t input_shape[DIM_MAX] = {n, n};
